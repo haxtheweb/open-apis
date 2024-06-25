@@ -7,7 +7,7 @@ import * as df from 'markdown-it';
 const MarkdownIt = df.default;
 const mdClass = new MarkdownIt();
 const site = new JSONOutlineSchema();
-const baseMdUrl = `${process.env.VERCEL_ENV !== 'development' ? 'https': 'http'}://${process.env.VERCEL_URL}/api/services/media/format/mdToHtml?type=link&raw=1&md=`
+const baseMdUrl = `${process.env.OPEN_APIS_ENV !== 'development' ? 'https': 'http'}://${process.env.VERCEL_URL}/api/services/media/format/mdToHtml?type=link&raw=1&md=`
 var downloads = {};
 var fileMap = {};
 export default async function handler(req, res) {
