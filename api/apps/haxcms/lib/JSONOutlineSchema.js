@@ -277,16 +277,17 @@ export class JSONOutlineSchema
    */
   async getContentById(id, cache = false) {
     const item = this.getItemById(id);
-    if (cache && process.env.OPEN_APIS_ENV !== 'development') {
+    // @todo something is up with our page cache request engine and not returning data in prod
+    /*if (cache && process.env.OPEN_APIS_ENV !== 'development') {
       return await fetch(`https://${process.env.VERCEL_URL}/api/apps/haxcms/pageCache?site=${this.file}&uuid=${id}&type=link`, this.__fetchOptions).then((d) => d.ok ? d.text() : '');
     }
-    else {
+    else {*/
       let location = this.file.replace(this.__siteFileBase, item.location);
       if (this.__siteLocationPathName) {
         location = location.replace(this.__siteLocationPathName + '/', '');
       }
       return await fetch(location, this.__fetchOptions).then((d) => d.ok ? d.text() : '');
-    }
+    //}
   }
   /**
    * Organize the items based on tree order. This makes front end navigation line up correctly
