@@ -1,0 +1,36 @@
+{
+  "name": "@haxtheweb/open-apis",
+  "description": "Shared API infrastructure for HAXTheWeb advanced capabilities like importing, parsing, analysis, migration",
+  "author": {
+    "name": "haxtheweb",
+    "url": "https://hax.psu.edu/"
+  },
+  "license": "Apache-2.0",
+  "repository": "git@github.com/haxtheweb/open-apis.git",
+  "scripts": {
+  },
+  "dependencies": {
+    "@lit-labs/ssr": "3.2.2",
+    "stream": "0.0.2",
+    "node-fetch": "3.3.2",
+    "base64-arraybuffer": "1.0.2",
+    "epub-gen": "0.1.0",
+    "mammoth": "1.6.0",
+    "busboy": "1.6.0",
+    "asciify-image": "0.1.8",
+    "concat-stream": "2.0.0",
+    "html-pdf": "3.0.1",
+    "text-vide": "1.5.0",
+    "node-html-parser": "6.1.10",
+    "html-to-docx": "1.8.0",
+    "text-readability": "1.0.5",
+    "pretty": "2.0.0"
+  },
+  "keywords": [
+    "custom-elements",
+    "webcomponents",
+    "li",
+    "vanillajs"
+  ],
+  "private": true
+}

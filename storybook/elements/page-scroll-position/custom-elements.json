@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "tags": [
+    {
+      "name": "page-scroll-position",
+      "description": "Events:\n\n  * `value-changed` {`CustomEvent<{ value: number; }>`} - ",
+      "attributes": [
+        {
+          "name": "onvalue-changed",
+          "description": "`value-changed` {`CustomEvent<{ value: number; }>`} - "
+        }
+      ]
+    }
+  ],
+  "globalAttributes": [],
+  "valueSets": []
+}

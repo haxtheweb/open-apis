@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "tags": [
+    {
+      "name": "voice-recorder",
+      "description": "`voice-recorder`\n`LAME bridge`\n\nEvents:\n\n  * `voice-recorder-recording-blob` {`CustomEvent<{ value: Blob; }>`} - \n\nAttributes:\n\n  * `recording` {`boolean`} - \n\n  * `label` {`string`} - \n\nProperties:\n\n  * `recording` {`boolean`} - \n\n  * `label` {`string`} - ",
+      "attributes": [
+        {
+          "name": "recording",
+          "description": "`recording` {`boolean`} - \n\nProperty: recording\n\nDefault: false",
+          "valueSet": "v"
+        },
+        {
+          "name": "label",
+          "description": "`label` {`string`} - \n\nProperty: label\n\nDefault: Activate Recorder"
+        },
+        {
+          "name": "onvoice-recorder-recording-blob",
+          "description": "`voice-recorder-recording-blob` {`CustomEvent<{ value: Blob; }>`} - "
+        }
+      ]
+    }
+  ],
+  "globalAttributes": [],
+  "valueSets": []
+}

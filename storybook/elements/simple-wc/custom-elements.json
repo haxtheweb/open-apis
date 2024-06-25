@@ -1,0 +1,17 @@
+{
+  "version": "experimental",
+  "tags": [
+    {
+      "name": "name",
+      "path": "./simple-wc.js"
+    },
+    {
+      "name": "tag",
+      "path": "./simple-wc.umd.js"
+    },
+    {
+      "name": "name",
+      "path": "./src/simple-wc.js"
+    }
+  ]
+}

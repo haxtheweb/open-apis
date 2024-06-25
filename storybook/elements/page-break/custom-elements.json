@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "tags": [
+    {
+      "name": "page-break-manager",
+      "description": "Properties:\n\n  * `windowControllers` - \n\n  * `target` - \n\n  * `breaks` {`never[]`} - \n\n  * `_timer` {`number`} - ",
+      "attributes": []
+    },
+    {
+      "name": "page-break-outline",
+      "description": "Attributes:\n\n  * `selector` - \n\n  * `base-path` {} - \n\nProperties:\n\n  * `windowControllers` - \n\n  * `target` - \n\n  * `selector` - \n\n  * `div` - \n\n  * `basePath` {`string`} - ",
+      "attributes": [
+        {
+          "name": "selector",
+          "description": "`selector` - \n\nProperty: selector\n\nDefault: null"
+        },
+        {
+          "name": "base-path",
+          "description": "`base-path` {} - \n\n"
+        }
+      ]
+    },
+    {
+      "name": "page-break",
+      "description": "`page-break`\n`a visual break but also helps manage hierarchy`\n\nEvents:\n\n  * `page-break-registration` {`CustomEvent<{ value: this; action: string; }>`} - \n\n  * `page-break-change` {`CustomEvent<{ value: this; }>`} - \n\n  * `hax-refresh-tray-form` {`CustomEvent<any>`} - \n\nAttributes:\n\n  * `parent` {`string`} - \n\n  * `related-items` {`string`} - \n\n  * `icon` {`string`} - \n\n  * `accent-color` {`string`} - \n\n  * `entity-type` {`string`} - \n\n  * `status` {`string`} - \n\n  * `description` {`string`} - \n\n  * `hide-in-menu` {`boolean`} - \n\n  * `developer-theme` {`string`} - \n\n  * `tags` {`string`} - \n\n  * `title` {`string`} - \n\n  * `page-type` {`string`} - \n\n  * `slug` {`string`} - \n\n  * `published` {`boolean`} - \n\n  * `image` {`string`} - \n\n  * `locked` {`boolean`} - \n\n  * `order` {`number`} - \n\n  * `depth` {`number`} - \n\n  * `item-id` {`string`} - \n\n  * `_haxState` {`boolean`} - \n\n  * `iconType` {`string`} - \n\n  * `break-type` {`string`} - \n\n  * `element-visible` {`boolean`} - \n\n  * `t` - \n\n  * `schemaMap` - Schema Map for the element, used to generate a valid prefix on the fly\nProps set for Polymer compatibility\n\nProperties:\n\n  * `parent` {`string`} - \n\n  * `relatedItems` {`string`} - \n\n  * `icon` {`string`} - \n\n  * `accentColor` {`string`} - \n\n  * `entityType` {`string`} - \n\n  * `status` {`string`} - \n\n  * `description` {`string`} - \n\n  * `hideInMenu` {`boolean`} - \n\n  * `noderefs` {`any[]`} - \n\n  * `developerTheme` {`string`} - \n\n  * `tags` {`string`} - \n\n  * `title` {`string`} - \n\n  * `pageType` {`string`} - \n\n  * `slug` {`string`} - \n\n  * `published` {`boolean`} - \n\n  * `image` {`string`} - \n\n  * `target` - \n\n  * `locked` {`boolean`} - \n\n  * `order` {`number`} - \n\n  * `depth` {`number`} - \n\n  * `itemId` {`string`} - \n\n  * `_haxState` {`boolean`} - \n\n  * `remoteHeadingobserver` - \n\n  * `iconType` {`string`} - \n\n  * `breakType` {`string`} - \n\n  * `elementVisible` {`boolean`} - \n\n  * `IOThresholds` {`number[]`} - \n\n  * `IORootMargin` {`string`} - \n\n  * `IOVisibleLimit` {`number`} - \n\n  * `IORemoveOnVisible` {`boolean`} - \n\n  * `IODelay` {`number`} - \n\n  * `IORoot` - \n\n  * `t` - \n\n  * `schemaResourceID` {`string`} - \n\n  * `schemaMap` - Schema Map for the element, used to generate a valid prefix on the fly\nProps set for Polymer compatibility",
+      "attributes": [
+        {
+          "name": "parent",
+          "description": "`parent` {`string`} - \n\nProperty: parent"
+        },
+        {
+          "name": "related-items",
+          "description": "`related-items` {`string`} - \n\nProperty: relatedItems\n\nDefault: null"
+        },
+        {
+          "name": "icon",
+          "description": "`icon` {`string`} - \n\nProperty: icon\n\nDefault: null"
+        },
+        {
+          "name": "accent-color",
+          "description": "`accent-color` {`string`} - \n\nProperty: accentColor\n\nDefault: null"
+        },
+        {
+          "name": "entity-type",
+          "description": "`entity-type` {`string`} - \n\nProperty: entityType\n\nDefault: page"
+        },
+        {
+          "name": "status",
+          "description": "`status` {`string`} - \n\nProperty: status\n\nDefault: "
+        },
+        {
+          "name": "description",
+          "description": "`description` {`string`} - \n\nProperty: description\n\nDefault: null"
+        },
+        {
+          "name": "hide-in-menu",
+          "description": "`hide-in-menu` {`boolean`} - \n\nProperty: hideInMenu\n\nDefault: false",
+          "valueSet": "v"
+        },
+        {
+          "name": "developer-theme",
+          "description": "`developer-theme` {`string`} - \n\nProperty: developerTheme\n\nDefault: null"
+        },
+        {
+          "name": "tags",
+          "description": "`tags` {`string`} - \n\nProperty: tags\n\nDefault: null"
+        },
+        {
+          "name": "title",
+          "description": "`title` {`string`} - \n\nProperty: title\n\nDefault: newPage"
+        },
+        {
+          "name": "page-type",
+          "description": "`page-type` {`string`} - \n\nProperty: pageType\n\nDefault: null"
+        },
+        {
+          "name": "slug",
+          "description": "`slug` {`string`} - \n\nProperty: slug\n\nDefault: "
+        },
+        {
+          "name": "published",
+          "description": "`published` {`boolean`} - \n\nProperty: published\n\nDefault: false",
+          "valueSet": "v"
+        },
+        {
+          "name": "image",
+          "description": "`image` {`string`} - \n\nProperty: image\n\nDefault: null"
+        },
+        {
+          "name": "locked",
+          "description": "`locked` {`boolean`} - \n\nProperty: locked\n\nDefault: false",
+          "valueSet": "v"
+        },
+        {
+          "name": "order",
+          "description": "`order` {`number`} - \n\nProperty: order\n\nDefault: null"
+        },
+        {
+          "name": "depth",
+          "description": "`depth` {`number`} - \n\nProperty: depth\n\nDefault: 0"
+        },
+        {
+          "name": "item-id",
+          "description": "`item-id` {`string`} - \n\nProperty: itemId\n\nDefault: null"
+        },
+        {
+          "name": "_haxState",
+          "description": "`_haxState` {`boolean`} - \n\nProperty: _haxState\n\nDefault: false",
+          "valueSet": "v"
+        },
+        {
+          "name": "iconType",
+          "description": "`iconType` {`string`} - \n\nProperty: iconType\n\nDefault: editor:format-page-break"
+        },
+        {
+          "name": "break-type",
+          "description": "`break-type` {`string`} - \n\nProperty: breakType\n\nDefault: node"
+        },
+        {
+          "name": "element-visible",
+          "description": "`element-visible` {`boolean`} - \n\nProperty: elementVisible\n\nDefault: false",
+          "valueSet": "v"
+        },
+        {
+          "name": "t",
+          "description": "`t` - \n\nProperty: t\n\nDefault: [object Object]"
+        },
+        {
+          "name": "schemaMap",
+          "description": "`schemaMap` - Schema Map for the element, used to generate a valid prefix on the fly\nProps set for Polymer compatibility\n\nProperty: schemaMap\n\nDefault: [object Object]"
+        },
+        {
+          "name": "onpage-break-registration",
+          "description": "`page-break-registration` {`CustomEvent<{ value: this; action: string; }>`} - "
+        },
+        {
+          "name": "onpage-break-change",
+          "description": "`page-break-change` {`CustomEvent<{ value: this; }>`} - "
+        },
+        {
+          "name": "onhax-refresh-tray-form",
+          "description": "`hax-refresh-tray-form` {`CustomEvent<any>`} - "
+        }
+      ]
+    }
+  ],
+  "globalAttributes": [],
+  "valueSets": []
+}
