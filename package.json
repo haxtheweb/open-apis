@@ -19,6 +19,7 @@
     "asciify-image": "0.1.8",
     "concat-stream": "2.0.0",
     "html-pdf": "3.0.1",
+    "commit-and-tag-version": "^12.4.1",
     "text-vide": "1.5.0",
     "node-html-parser": "6.1.10",
     "html-to-docx": "1.8.0",
