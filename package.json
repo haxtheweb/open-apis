@@ -14,7 +14,7 @@
     "jsdom": "24.0.0",
     "url": "0.11.0",
     "turndown": "7.1.1",
-    "sharp": "0.33.2",
+    "sharp": "0.32.6",
     "markdown-it": "14.0.0",
     "stream": "0.0.2",
     "node-fetch": "3.3.2",
