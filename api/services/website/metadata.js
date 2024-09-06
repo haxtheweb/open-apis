@@ -1,4 +1,4 @@
-// duckduckgo.js
+// metadata.js
 // this is an example to fork from that uses common, simple conventions
 // for getting data, validating data, and responding in a consistent way.
 import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
@@ -21,8 +21,9 @@ export default async function handler(req, res) {
   }
   // need to know what we're searching for otherwise bail
   if (q) {
+    let pageURL = `${process.env.OPEN_APIS_ENV !== 'development' ? 'https': 'http'}://${process.env.VERCEL_URL}/api/services/website/cacheAddress?q=${q}`;
     // we import fetch just to simplify endpoint creation but its just node-fetch
-    const page = await fetch(`http://${process.env.VERCEL_URL}/api/services/website/cacheAddress?q=${q}`).then((d) => d.ok ? d.json() : '').then((r) => r.data);
+    const page = await fetch(pageURL).then((d) => d.ok ? d.json() : '').then((r) => r.data);
     const doc = parse(`<div id="wrapper">${page}</div>`);
     const tags = doc.querySelectorAll('title,meta,script[type="application/ld+json"]');
     var metadata = {};
