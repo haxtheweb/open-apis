@@ -43,7 +43,7 @@ export default async function handler(req, res) {
       <script src="${magic}build.js"></script>
       <script src="${magic}build-haxcms.js"></script>
     </html>`;
-    const response = await fetch(`https://pdf-from.open-apis.hax.cloud/pdfFrom`,
+    const response = await fetch(`https://pdf-from.open-apis.hax.cloud/api/pdfFrom`,
       {
         method: 'POST',
         body: JSON.stringify({
