@@ -5,9 +5,16 @@
     "name": "haxtheweb",
     "url": "https://hax.psu.edu/"
   },
+  "bugs": {
+    "url": "https://github.com/haxtheweb/issues/issues"
+  },
+  "homepage": "https://hax.psu.edu/",
   "license": "Apache-2.0",
   "repository": "git@github.com/haxtheweb/open-apis.git",
-  "scripts": {},
+  "scripts": {
+    "build": "rm -rf dist && babel api --out-dir dist --copy-files --include-dotfiles",
+    "release": "npm run build && commit-and-tag-version && git push --follow-tags origin main && npm publish"
+  },
   "dependencies": {
     "html-pdf": "3.0.1",
     "commit-and-tag-version": "^12.4.1",
@@ -30,12 +37,21 @@
     "text-readability": "1.0.5",
     "pretty": "2.0.0"
   },
-  "keywords": [
-    "custom-elements",
-    "webcomponents",
-    "li",
-    "vanillajs"
+  "devDependencies": {
+    "@babel/cli": "^7.24.6",
+    "@babel/core": "^7.24.6",
+    "@babel/preset-env": "7.24.6",
+    "@babel/register": "^7.24.6",
+    "babel-plugin-transform-dynamic-import": "^2.1.0",
+    "commit-and-tag-version": "12.4.1"
+  },
+  "files": [
+    "dist"
   ],
-  "private": true,
+  "keywords": [
+    "webcomponents",
+    "microservices",
+    "haxtheweb"
+  ],
   "version": "9.0.6"
 }
