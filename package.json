@@ -47,7 +47,8 @@
   },
   "private": false,
   "files": [
-    "dist"
+    "dist",
+    "api"
   ],
   "keywords": [
     "webcomponents",
