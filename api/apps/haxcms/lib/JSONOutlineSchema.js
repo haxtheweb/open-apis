@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from '../../../vendor/uuid/esm-node/index.js';
 
-import fetch from "node-fetch";
+
 import { JSONOutlineSchemaItem } from './JSONOutlineSchemaItem.js';
 /**
  * JSONOutlineSchema - An object for interfacing with the JSON Outline schema

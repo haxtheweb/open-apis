@@ -1,4 +1,4 @@
-import { stdPostBody, stdResponse } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse } from "../../utilities/requestHelpers.js";
 import { courseStatsFromOutline, siteHTMLContent, resolveSiteData } from "./lib/JOSHelpers.js";
 import rs from "text-readability";
 

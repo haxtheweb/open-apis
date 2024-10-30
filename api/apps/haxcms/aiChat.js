@@ -6,7 +6,7 @@ curl -X POST http://ec2-44-205-57-53.compute-1.amazonaws.com/handle-query \
      -H "Content-Type: application/json" \
      -d '{"question":"what are forms of energy?", "course":"phys211"}'
 */
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../utilities/requestHelpers.js";
 import { resolveSiteData } from "./lib/JOSHelpers.js";
 
 // LLM response agents

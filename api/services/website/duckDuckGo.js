@@ -1,8 +1,8 @@
 // duckduckgo.js
 // this is an example to fork from that uses common, simple conventions
 // for getting data, validating data, and responding in a consistent way.
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
-import fetch from "node-fetch";
+import { stdPostBody, stdResponse, invalidRequest } from "../../utilities/requestHelpers.js";
+
 export default async function handler(req, res) {
   // destructing GET params after ? available in this object
   // use this if POST data is what's being sent
@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   }
   // need to know what we're searching for otherwise bail
   if (q) {
-    // we import fetch just to simplify endpoint creation but its just node-fetch
+    // we import fetch just to simplify endpoint creation but its just fetch
     const searchResults = await fetch(`http://api.duckduckgo.com/?q=${q}&format=json`).then((d) => d.ok ? d.json(): {});
     // standard response is how all transactions end
     // this will assume 200 response code unless defined otherwise

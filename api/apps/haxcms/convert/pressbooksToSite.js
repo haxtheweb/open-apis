@@ -1,5 +1,5 @@
 // @haxcms/pressbooksToSite
-import { stdResponse } from "../../../../utilities/requestHelpers.js";
+import { stdResponse } from "../../../utilities/requestHelpers.js";
 import { JSONOutlineSchemaItem } from "../lib/JSONOutlineSchemaItem.js";
 import { cleanTitle, validURL } from "../lib/JOSHelpers.js";
 import busboy from 'busboy';

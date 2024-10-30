@@ -1,5 +1,5 @@
-import { stdPostBody, stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
-import fetch from "node-fetch";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+
 import * as prettyJS from 'pretty';
 const pretty = prettyJS.default;
 

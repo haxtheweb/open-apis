@@ -1,4 +1,4 @@
-import { stdPostBody, stdResponse } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse } from "../../utilities/requestHelpers.js";
 import { siteHTMLContent } from "./lib/JOSHelpers.js";
 
 // site object to validate response from passed in url

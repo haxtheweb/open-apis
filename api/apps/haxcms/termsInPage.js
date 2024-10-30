@@ -1,6 +1,6 @@
-import { stdPostBody, stdResponse } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse } from "../../utilities/requestHelpers.js";
 import { siteGlossary } from "./siteGlossary.js";
-import fetch from "node-fetch";
+
 
 // site object to validate response from passed in url
 export default async function handler(req, res) {

@@ -1,4 +1,4 @@
-import { stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdResponse, invalidRequest } from "../../utilities/requestHelpers.js";
 
 // vercel to slice our data into views that we can remix at will
 export default async function handler(req, res) {

@@ -1,9 +1,9 @@
-import { stdResponse } from "../../../../utilities/requestHelpers.js";
+import { stdResponse } from "../../../utilities/requestHelpers.js";
 import df from 'mammoth';
 const { convertToHtml } = df;
 import busboy from 'busboy';
 import concat from "concat-stream";
-import fetch from "node-fetch";
+
 import { encode } from "base64-arraybuffer";
 
 export default async function handler(req, res) {

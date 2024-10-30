@@ -1,5 +1,5 @@
 // MD5 operations on a string
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../utilities/requestHelpers.js";
 import crypto from "crypto";
 
 const hashKey = `haxIsFuf342f4nFo3t4t5g67kyutyhrewrSomePeopu76jujyhgle`;

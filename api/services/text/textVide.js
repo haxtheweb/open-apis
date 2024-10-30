@@ -1,4 +1,4 @@
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../utilities/requestHelpers.js";
 import { textVide } from 'text-vide';
 export default async function handler(req, res) {
   // use this if POST data is what's being sent

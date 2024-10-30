@@ -1,9 +1,9 @@
 // metadata.js
 // this is an example to fork from that uses common, simple conventions
 // for getting data, validating data, and responding in a consistent way.
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../utilities/requestHelpers.js";
 import { parse } from 'node-html-parser';
-import fetch from "node-fetch";
+
 export default async function handler(req, res) {
   // destructing GET params after ? available in this object
   // use this if POST data is what's being sent
@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     let __fetchOptions = {
       method: "GET",
     };
-    // we import fetch just to simplify endpoint creation but its just node-fetch
+    // we import fetch just to simplify endpoint creation but its just fetch
     const page = await fetch(q, __fetchOptions).then((d) => d.ok ? d.text(): '');
     const doc = parse(`<div id="wrapper">${page}</div>`);
     const tags = doc.querySelectorAll('title,meta,script[type="application/ld+json"]');

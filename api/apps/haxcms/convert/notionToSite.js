@@ -1,8 +1,8 @@
-import { stdPostBody, stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
 import { JSONOutlineSchema } from "../lib/JSONOutlineSchema.js";
 import { JSONOutlineSchemaItem } from "../lib/JSONOutlineSchemaItem.js";
 import { cleanTitle } from "../lib/JOSHelpers.js";
-import fetch from "node-fetch";
+
 import { parse } from 'node-html-parser';
 import * as df from 'markdown-it';
 const MarkdownIt = df.default;

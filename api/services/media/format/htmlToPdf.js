@@ -1,5 +1,5 @@
-import { stdPostBody, stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
-import fetch from "node-fetch";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+
 import { encode } from "base64-arraybuffer";
 
 export default async function handler(req, res) {

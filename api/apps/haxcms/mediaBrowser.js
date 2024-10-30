@@ -1,4 +1,4 @@
-import { stdPostBody, stdResponse } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse } from "../../utilities/requestHelpers.js";
 import { courseStatsFromOutline } from "./lib/JOSHelpers.js";
 
 // given a site, and current page, obtain stats that are possibly relevant

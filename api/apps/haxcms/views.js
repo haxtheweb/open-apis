@@ -1,4 +1,4 @@
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../utilities/requestHelpers.js";
 import { resolveSiteData } from "./lib/JOSHelpers.js";
 import { parse } from 'node-html-parser';
 

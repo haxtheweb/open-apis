@@ -1,6 +1,6 @@
 import { JSONOutlineSchema } from "./JSONOutlineSchema.js";
 import { parse } from 'node-html-parser';
-import fetch from "node-fetch";
+
 
 // average adult reading pace
 const WORDSPERMIN = 225;

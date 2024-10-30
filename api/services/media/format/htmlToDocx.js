@@ -1,4 +1,4 @@
-import { stdPostBody, stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
 import pkg from 'html-to-docx';
 const HTMLtoDOCX = pkg;
 
