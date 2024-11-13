@@ -45,8 +45,18 @@ export default async function handler(req, res) {
     if (body && body.raw) {
         headers.type = 'text/html';
         returnData = `<ul>${linkResp}</ul>`;
+        res = stdResponse(res, returnData, headers);
     }
-    res = stdResponse(res, returnData, headers);
+    else if (body && body.random) {
+      // Generate a random index within the array's length
+      const randomIndex = Math.floor(Math.random() * Object.keys(searchResults.site_counts).length);
+      let randKey = Object.keys(searchResults.site_counts)[randomIndex];
+      returnData = `https://oer.hax.psu.edu/${randKey.split('/')[0]}/sites/${randKey.split('/')[1]}`;
+      res.redirect(307, returnData);
+    }
+    else {
+      res = stdResponse(res, returnData, headers);
+    }
   }
   else {
     // invalidate the response and provide a reason
