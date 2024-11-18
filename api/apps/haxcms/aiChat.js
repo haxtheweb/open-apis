@@ -11,8 +11,8 @@ import { resolveSiteData } from "./lib/JOSHelpers.js";
 
 // LLM response agents
 const engines = {
-  alfred: "https://askalfred.vercel.app/api/query",
-  robin: "http://ec2-44-205-57-53.compute-1.amazonaws.com/handle-query",
+  alfred: "https://ai.services.hax.psu.edu/call-ollama",
+  icds: "https://ai.services.hax.psu.edu/call-ollama",
 };
 
 // site object to validate response from passed in url
@@ -62,17 +62,18 @@ export default async function handler(req, res) {
     }
     // hard code to switch context on the fly
     //context = "haxcellence";
-    let engine = body.engine || "alfred";
+    let engine = body.engine || "icds";
     let data = await fetch(engines[engine], {
       method: "POST",
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.ICDS_API_KEY}`,
       },
       mode: "no-cors",
       redirect: "follow",
       body: JSON.stringify({
-        "question": body.question,
+        "query": body.question,
         "course": context
       }),
     })
@@ -80,10 +81,10 @@ export default async function handler(req, res) {
         return d.ok ? d.json() : null;
     })
     .then((response) => {
-      if (response && response.data) {
+      if (response && response.result) {
         return {
-          answers: [response.data.answers],
-          question: response.data.question,
+          answers: [response.result],
+          question: body.question,
           status: 200
         }
       }
