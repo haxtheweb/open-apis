@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   let body = {};
   let op = null;
   let data = null;
-  if (req.query.op) {
+  if (req && req.query && req.query.op) {
     body = req.query;
   }
   else {

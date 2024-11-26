@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   // use this if POST data is what's being sent
   let body = {};
   let q = null;
-  if (req.query.q) {
+  if (req && req.query && req.query.q) {
     body = req.query;
   }
   else {

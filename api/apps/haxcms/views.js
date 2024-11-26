@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   let siteManifest = {};
   // use this if POST data is what's being sent
   let body = {};
-  if (req.query.site) {
+  if (req && req.query && req.query.site) {
     body = req.query;
   }
   else {

@@ -3,7 +3,7 @@ import rs from "text-readability";
 export default async function handler(req, res) {
   // use this if POST data is what's being sent
   let body = {};
-  if (req.query.body) {
+  if (req && req.query && req.query.body) {
     body = req.query;
   }
   else {

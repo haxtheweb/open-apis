@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   var parentId = null;
   let body = {};
   // allow GET or  POST
-  if (req.query.repoUrl) {
+  if (req && req.query && req.query.repoUrl) {
     body = req.query;
   }
   else {

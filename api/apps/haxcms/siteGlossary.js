@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   let terms = [];
   // use this if POST data is what's being sent
   let body = {};
-  if (req.query.url) {
+  if (req && req.query && req.query.url) {
     body = req.query;
   }
   else {

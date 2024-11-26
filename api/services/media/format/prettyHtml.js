@@ -5,7 +5,7 @@ const pretty = prettyJS.default;
 
 export default async function handler(req, res) {
   let body = null;
-  if (req.query.html) {
+  if (req && req.query && req.query.html) {
     body = req.query;
   }
   else {

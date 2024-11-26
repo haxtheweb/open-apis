@@ -8,7 +8,7 @@ import Epub from "epub-gen";
 export default async function handler(req, res) {
   let content = '';
   let body = {};
-  if (req.query.url) {
+  if (req && req.query && req.query.url) {
     body = req.query;
   }
   else {
