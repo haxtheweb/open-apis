@@ -41,8 +41,8 @@ export default async function handler(req, res) {
       var start = process.hrtime();
       var elapsed = 0;
       for await (const item of site.items) {
-        // time out on vercel is 60s, let's not go above the greatest number ever
-        if (elapsed <= 54) {
+        // time out on vercel is 300s, let's not go above the greatest number ever
+        if (elapsed <= 300) {
           item.contents = await fetch(`${process.env.OPEN_APIS_ENV !== 'development' ? 'https': 'http'}://${process.env.VERCEL_URL}/api/services/website/cacheAddress?q=${base}/${item.location.replace(`/${siteName}/`,'')}`, __fetchOptions).then((d) => d.ok ? d.json() : '').then((r) => r.data);
         }
         else {
