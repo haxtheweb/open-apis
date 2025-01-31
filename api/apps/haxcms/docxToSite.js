@@ -273,7 +273,7 @@ function htmlFromEl(el) {
       return `<place-holder type="text" text="${textValue}"></place-holder>`;  
     }
   }
-  // test for ! which implies a specififc tag is going to be inserted
+  // test for ! which implies a specific tag is going to be inserted
   // this is basically just for developers
   else if (textValue.startsWith('!') && textValue.includes('-')) {
     let tag = textValue.replace('!', '').trim();
