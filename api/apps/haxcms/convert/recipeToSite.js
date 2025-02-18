@@ -29,13 +29,13 @@ export default async function handler(req, res) {
   }
   // need to know what we're searching for otherwise bail
   if (q) {
-    await exec(`${process.cwd()}/node_modules/.bin/hax site ${SITENAME} --y --quiet`);
+    await exec(`hax site ${SITENAME} --y --quiet`);
     // we import fetch just to simplify endpoint creation but its just fetch
     const recipe = await fetch(`${q}`).then((d) => d.ok ? d.text(): {});
     fs.writeFileSync(`${process.cwd()}/${SITENAME}/${RECIPENAME}`, recipe);
-    await exec(`${process.cwd()}/node_modules/.bin/hax site recipe:play --y --recipe "${RECIPENAME}" --root "${process.cwd()}/${SITENAME}"`);
+    await exec(`hax site recipe:play --y --recipe "${RECIPENAME}" --root "${process.cwd()}/${SITENAME}"`);
 
-    await exec(`${process.cwd()}/node_modules/.bin/hax site site:items --y --format json --to-file "${ITEMSFILE}" --root "${process.cwd()}/${SITENAME}"`);
+    await exec(`hax site site:items --y --format json --to-file "${ITEMSFILE}" --root "${process.cwd()}/${SITENAME}"`);
     const items = JSON.parse(fs.readFileSync(`${process.cwd()}/${SITENAME}/${ITEMSFILE}`, 'utf8'));
     res = stdResponse(res, items, {cache: 86400, methods: "OPTIONS, POST, GET" });
   }
