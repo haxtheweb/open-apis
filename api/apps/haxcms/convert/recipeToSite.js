@@ -11,7 +11,8 @@ const exec = util.promisify(child_process.exec);
 const SITENAME = 'mysite';
 const RECIPENAME = 'tmp.recipe';
 const ITEMSFILE = 'items.json';
-
+console.log(import.meta.resolve('@haxtheweb/create/dist/create.js'));
+const HAXPROGRAM = import.meta.resolve('@haxtheweb/create/dist/create.js');
 export default async function handler(req, res) {
   // destructing GET params after ? available in this object
   // use this if POST data is what's being sent
@@ -29,13 +30,15 @@ export default async function handler(req, res) {
   }
   // need to know what we're searching for otherwise bail
   if (q) {
-    await exec(`hax site ${SITENAME} --y --quiet`);
+    const { stdout, stdin } = await exec("npm root");
+    const HAXPROGRAM = `${stdout.trim()}/.bin/hax`;
+    await exec(`${HAXPROGRAM} site ${SITENAME} --y --quiet`);
     // we import fetch just to simplify endpoint creation but its just fetch
     const recipe = await fetch(`${q}`).then((d) => d.ok ? d.text(): {});
     fs.writeFileSync(`${process.cwd()}/${SITENAME}/${RECIPENAME}`, recipe);
-    await exec(`hax site recipe:play --y --recipe "${RECIPENAME}" --root "${process.cwd()}/${SITENAME}"`);
+    await exec(`${HAXPROGRAM} site recipe:play --y --recipe "${RECIPENAME}" --root "${process.cwd()}/${SITENAME}"`);
 
-    await exec(`hax site site:items --y --format json --to-file "${ITEMSFILE}" --root "${process.cwd()}/${SITENAME}"`);
+    await exec(`${HAXPROGRAM} site site:items --y --format json --to-file "${ITEMSFILE}" --root "${process.cwd()}/${SITENAME}"`);
     const items = JSON.parse(fs.readFileSync(`${process.cwd()}/${SITENAME}/${ITEMSFILE}`, 'utf8'));
     res = stdResponse(res, items, {cache: 86400, methods: "OPTIONS, POST, GET" });
   }
