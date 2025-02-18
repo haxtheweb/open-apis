@@ -6,13 +6,10 @@ import * as child_process from "child_process";
 import * as util from "node:util";
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-
 const exec = util.promisify(child_process.exec);
 const SITENAME = 'mysite';
 const RECIPENAME = 'tmp.recipe';
 const ITEMSFILE = 'items.json';
-console.log(import.meta.resolve('@haxtheweb/create/dist/create.js'));
-const HAXPROGRAM = import.meta.resolve('@haxtheweb/create/dist/create.js');
 export default async function handler(req, res) {
   // destructing GET params after ? available in this object
   // use this if POST data is what's being sent
@@ -31,7 +28,7 @@ export default async function handler(req, res) {
   // need to know what we're searching for otherwise bail
   if (q) {
     const { stdout, stdin } = await exec("npm root");
-    const HAXPROGRAM = `${stdout.trim()}/.bin/hax`;
+    const HAXPROGRAM = `npm run hax -- `;
     await exec(`${HAXPROGRAM} site ${SITENAME} --y --quiet`);
     // we import fetch just to simplify endpoint creation but its just fetch
     const recipe = await fetch(`${q}`).then((d) => d.ok ? d.text(): {});
