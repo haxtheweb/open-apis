@@ -2,6 +2,7 @@
   "type": "module",
   "name": "vercel-api-open-apis",
   "dependencies": {
+    "@haxtheweb/create": "^10.0.2",
     "jsdom": "24.0.0",
     "url": "0.11.0",
     "turndown": "7.1.1",

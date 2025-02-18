@@ -16,6 +16,7 @@
     "release": "npm run downstream-build && commit-and-tag-version && git push --follow-tags origin main && npm publish"
   },
   "dependencies": {
+    "@haxtheweb/create": "^10.0.2",
     "asciify-image": "0.1.8",
     "base64-arraybuffer": "1.0.2",
     "busboy": "1.6.0",
