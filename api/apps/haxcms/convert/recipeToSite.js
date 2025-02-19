@@ -27,7 +27,7 @@ export default async function handler(req, res) {
   }
   // need to know what we're searching for otherwise bail
   if (q) {
-    const HAXPROGRAM = 'npx @haxtheweb/create --';
+    const HAXPROGRAM = 'cd /tmp/ && npx @haxtheweb/create --';
     await exec(`${HAXPROGRAM} site ${SITENAME} --path "/tmp/" --y --quiet`);
     // we import fetch just to simplify endpoint creation but its just fetch
     const recipe = await fetch(`${q}`).then((d) => d.ok ? d.text(): {});
