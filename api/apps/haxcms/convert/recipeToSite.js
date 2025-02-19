@@ -28,7 +28,8 @@ export default async function handler(req, res) {
   // need to know what we're searching for otherwise bail
   if (q) {
     const { stdout, stdin } = await exec("npm root");
-    const HAXPROGRAM = `${stdout.trim()}/.bin/hax`;
+    console.log(stdout.trim());
+    const HAXPROGRAM = 'npx @haxtheweb/create --';//`${stdout.trim()}/.bin/hax`;
     await exec(`${HAXPROGRAM} site ${SITENAME} --y --quiet`);
     // we import fetch just to simplify endpoint creation but its just fetch
     const recipe = await fetch(`${q}`).then((d) => d.ok ? d.text(): {});
