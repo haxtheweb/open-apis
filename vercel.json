@@ -8,6 +8,11 @@
       "memory": 1024,
       "maxDuration": 300
     },
+    "api/apps/haxcms/convert/recipeToSite.js": {
+      "memory": 3008,
+      "maxDuration": 300,
+      "includeFiles": "@haxtheweb/create"
+    },
     "api/apps/haxcms/convert/*.js": {
       "memory": 3008,
       "maxDuration": 300
