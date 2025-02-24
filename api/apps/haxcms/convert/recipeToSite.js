@@ -27,14 +27,14 @@ export default async function handler(req, res) {
   // need to know what we're searching for otherwise bail
   if (q) {
 
-    const HAXPROGRAM = `./node_modules/.bin/hax`;
-    await exec(`${HAXPROGRAM} site ${SITENAME} --path "/tmp/" --y --quiet`);
+    const HAXPROGRAM = `npm run hax --`;
+    await exec(`${HAXPROGRAM} site ${SITENAME} --path "/tmp/" --y --quiet`, { cwd: '/var/task' });
     // we import fetch just to simplify endpoint creation but its just fetch
     const recipe = await fetch(`${q}`).then((d) => d.ok ? d.text(): {});
     fs.writeFileSync(`/tmp/${SITENAME}/${RECIPENAME}`, recipe);
-    await exec(`${HAXPROGRAM} site recipe:play --y --recipe "${RECIPENAME}" --root "/tmp/${SITENAME}"`);
+    await exec(`${HAXPROGRAM} site recipe:play --y --recipe "${RECIPENAME}" --root "/tmp/${SITENAME}"`, { cwd: '/var/task' });
 
-    await exec(`${HAXPROGRAM} site site:items --y --format json --to-file "${ITEMSFILE}" --root "/tmp/${SITENAME}"`);
+    await exec(`${HAXPROGRAM} site site:items --y --format json --to-file "${ITEMSFILE}" --root "/tmp/${SITENAME}"`, { cwd: '/var/task' });
     const items = JSON.parse(fs.readFileSync(`/tmp/${SITENAME}/${ITEMSFILE}`, 'utf8'));
     res = stdResponse(res, items, {cache: 86400, methods: "OPTIONS, POST, GET" });
   }

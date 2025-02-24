@@ -11,7 +11,7 @@
     "api/apps/haxcms/convert/recipeToSite.js": {
       "memory": 3008,
       "maxDuration": 300,
-      "includeFiles": "@haxtheweb/create/dist/create.js"
+      "includeFiles": "@haxtheweb/"
     },
     "api/apps/haxcms/convert/*.js": {
       "memory": 3008,
