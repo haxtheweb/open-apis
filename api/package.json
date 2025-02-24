@@ -4,8 +4,9 @@
   "scripts": {
     "hax": "hax"
   },
+  "license": "Apache-2.0",
   "dependencies": {
-    "@haxtheweb/create": "^10.0.3",
+    "@haxtheweb/create": "^10.0.4",
     "jsdom": "24.0.0",
     "url": "0.11.0",
     "turndown": "7.1.1",
