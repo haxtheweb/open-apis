@@ -14,7 +14,8 @@
   "scripts": {
     "downstream-build": "rm -rf dist && babel api --out-dir dist --copy-files --include-dotfiles && rm dist/package.json",
     "release": "npm run downstream-build && commit-and-tag-version && git push --follow-tags origin main && npm publish",
-    "hax": "hax"
+    "hax": "hax",
+    "build": "rm -rf dist/ && mkdir dist/ && cp package.json dist/package.json && cp index.html dist/index.html"
   },
   "dependencies": {
     "@haxtheweb/create": "^10.0.4",
