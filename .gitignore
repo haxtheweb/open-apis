@@ -1,5 +1,4 @@
 .vercel
-package-lock.json
 .env*.local
 # Logs
 logs
