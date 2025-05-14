@@ -113,5 +113,11 @@ export default async function handler(req, res) {
 
     </html>`;
   }
+  if (body.format === 'json') {
+    content = {
+      status: 200,
+      data: content
+    };
+  }
   res = stdResponse(res, content, options);
 }
