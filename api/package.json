@@ -6,7 +6,7 @@
   },
   "license": "Apache-2.0",
   "dependencies": {
-    "@haxtheweb/create": "^10.0.4",
+    "@haxtheweb/create": "^10.0.8",
     "jsdom": "24.0.0",
     "url": "0.11.0",
     "turndown": "7.1.1",
@@ -14,7 +14,7 @@
     "markdown-it": "14.0.0",
     "stream": "0.0.2",
     "base64-arraybuffer": "1.0.2",
-    "epub-gen": "0.1.0",
+    "epub-gen-memory": "1.1.2",
     "mammoth": "1.6.0",
     "busboy": "1.6.0",
     "asciify-image": "0.1.8",
