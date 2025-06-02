@@ -9,9 +9,10 @@ export default async function handler(req, res) {
   // process.env.HAX_STATS has our stats compiled by our staging system
   let data = await fetch(process.env.HAX_STATS).then((res) => {
     return res.json()
-  });
+  })
+  // only return overall data
   if (data) {
-    res = stdResponse(res, data || [], options);
+    res = stdResponse(res, {overall: data.overall} || [], options);
   }
   else {
     res = invalidRequest(res, 'data from stats failed to load');
