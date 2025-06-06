@@ -17,7 +17,7 @@
     "hax": "hax"
   },
   "dependencies": {
-    "@haxtheweb/create": "^10.0.8",
+    "@haxtheweb/create": "^11.0.2",
     "asciify-image": "0.1.8",
     "base64-arraybuffer": "1.0.2",
     "busboy": "1.6.0",
