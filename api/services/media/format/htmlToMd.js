@@ -16,8 +16,39 @@ export default async function handler(req, res) {
     var html = body.html;
     // md is actually a link reference so fetch it 1st
     if (body.type === 'link' && html) {
-      html = await fetch(html.trim()).then((d) => d.ok ? d.text(): '');
+      try {
+        html = await fetch(html.trim()).then((d) => d.ok ? d.text(): '');
+      } catch (error) {
+        html = '';
+      }
     }
-    stdResponse(res, await turndownService.turndown(html), {cache: 180 });
+    
+    // Ensure html is a string before passing to turndown
+    if (typeof html !== 'string') {
+      if (html === null || html === undefined) {
+        html = '';
+      } else if (typeof html === 'object') {
+        // If it's an object, try to extract meaningful content
+        if (html.html) {
+          html = html.html;
+        } else if (html.content) {
+          html = html.content;
+        } else if (html.data) {
+          html = html.data;
+        } else {
+          res = invalidRequest(res, 'Invalid HTML content format');
+          return;
+        }
+      } else {
+        html = String(html);
+      }
+    }
+    
+    try {
+      const markdown = turndownService.turndown(html);
+      stdResponse(res, markdown, {cache: 180 });
+    } catch (error) {
+      res = invalidRequest(res, 'Failed to convert HTML to Markdown');
+    }
   }
 }

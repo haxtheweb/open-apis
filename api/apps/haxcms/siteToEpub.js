@@ -20,9 +20,17 @@ export default async function handler(req, res) {
   // get URL bits for validating and forming calls
   let url = '';
   if (body.type === 'link') {
+    // Validate that body.site exists for link type
+    if (!body.site) {
+      return stdResponse(res, { message: 'Missing required site URL' }, 400);
+    }
     url = body.site.replace('/site.json', '');
   }
   else {
+    // Validate that body.site exists and has the required structure
+    if (!body.site || !body.site.file) {
+      return stdResponse(res, { message: 'Missing required site data' }, 400);
+    }
     body.site.file = body.site.file.replace('iam.', 'oer.');
     // abuse that we have this prop for where somerthing lives
     url = body.site.file.replace('/site.json', '');
@@ -944,9 +952,18 @@ export async function pagesAsData(site, ancestor, siteLocation) {
   }
   // get every page and stuff it together
   for (var i in items) {
-    let item = site.items[i];
-    let content = await site.getContentById(item.id, true);
-    const doc = parse(`<div id="wrapper">${content}</div>`);
+    try {
+      let item = site.items[i];
+      if (!item || !item.id) {
+        console.warn('Invalid item found, skipping:', item);
+        continue;
+      }
+      let content = await site.getContentById(item.id, true);
+      if (!content) {
+        console.warn('No content found for item:', item.title || item.id);
+        continue;
+      }
+      const doc = parse(`<div id="wrapper">${content}</div>`);
     // work on videos
     const videos = doc.querySelectorAll('video-player,iframe[src*="youtube.com"],iframe[src*="youtube-nocookie.com"],iframe[src*="vimeo.com"],video[src],video source[src],a11y-media-player');
     for await (const el of videos) {
@@ -955,20 +972,52 @@ export async function pagesAsData(site, ancestor, siteLocation) {
       // ensure we have valid source/src data to draw from
       if (el.getAttribute('source')) {
         if (el.getAttribute('source').includes("https://")) {
-          urlData = new URL(el.getAttribute('source'));
+          try {
+            urlData = new URL(el.getAttribute('source'));
+          } catch (e) {
+            console.warn('Invalid absolute URL for video source:', el.getAttribute('source'), e.message);
+            el.remove();
+            continue;
+          }
         }
         else {
-          let tmp = new URL(siteLocation);
-          urlData = new URL(tmp.origin + el.getAttribute('source'));
+          try {
+            let tmp = new URL(siteLocation);
+            let sourcePath = el.getAttribute('source');
+            // Ensure proper path separator
+            if (!sourcePath.startsWith('/')) {
+              sourcePath = '/' + sourcePath;
+            }
+            urlData = new URL(tmp.origin + sourcePath);
+          } catch (e) {
+            console.warn('Invalid URL construction for video source:', el.getAttribute('source'), e.message);
+            continue;
+          }
         }
       }
       else if (el.getAttribute('src')) {
         if (el.getAttribute('src').includes("https://") || el.getAttribute('src').includes("http://")) {
-          urlData = new URL(el.getAttribute('src'));
+          try {
+            urlData = new URL(el.getAttribute('src'));
+          } catch (e) {
+            console.warn('Invalid absolute URL for video src:', el.getAttribute('src'), e.message);
+            el.remove();
+            continue;
+          }
         }
         else {
-          let tmp = new URL(siteLocation);
-          urlData = new URL(tmp.origin + el.getAttribute('src'));
+          try {
+            let tmp = new URL(siteLocation);
+            let srcPath = el.getAttribute('src');
+            // Ensure proper path separator
+            if (!srcPath.startsWith('/')) {
+              srcPath = '/' + srcPath;
+            }
+            urlData = new URL(tmp.origin + srcPath);
+          } catch (e) {
+            console.warn('Invalid URL construction for video src:', el.getAttribute('src'), e.message);
+            continue;
+          }
         }
       }
       if (urlData.origin) {
@@ -1007,31 +1056,71 @@ export async function pagesAsData(site, ancestor, siteLocation) {
     // work on images
     const images = doc.querySelectorAll('media-image,img,simple-img');
     for await (const el of images) {
-      let urlData = {};
-      // ensure we have valid source/src data to draw from
-      if (el.getAttribute('source')) {
-        if (el.getAttribute('source').includes("https://")) {
-          urlData = new URL(el.getAttribute('source'));
+      try {
+        let urlData = {};
+        // ensure we have valid source/src data to draw from
+        if (el.getAttribute('source')) {
+          if (el.getAttribute('source').includes("https://")) {
+            try {
+              urlData = new URL(el.getAttribute('source'));
+            } catch (e) {
+              console.warn('Invalid absolute URL for image source:', el.getAttribute('source'), e.message);
+              el.remove();
+              continue;
+            }
+          }
+          else {
+            try {
+              let tmp = new URL(siteLocation);
+              let sourcePath = el.getAttribute('source');
+              // Ensure proper path separator
+              if (!sourcePath.startsWith('/')) {
+                sourcePath = '/' + sourcePath;
+              }
+              urlData = new URL(tmp.origin + sourcePath);
+            } catch (e) {
+              console.warn('Invalid URL construction for image source:', el.getAttribute('source'), e.message);
+              el.remove();
+              continue;
+            }
+          }
         }
-        else {
-          let tmp = new URL(siteLocation);
-          urlData = new URL(tmp.origin + el.getAttribute('source'));
+        else if (el.getAttribute('src')) {
+          if (el.getAttribute('src').includes("https://") || el.getAttribute('src').includes("http://")) {
+            try {
+              urlData = new URL(el.getAttribute('src'));
+            } catch (e) {
+              console.warn('Invalid absolute URL for image src:', el.getAttribute('src'), e.message);
+              el.remove();
+              continue;
+            }
+          }
+          else {
+            try {
+              let tmp = new URL(siteLocation);
+              let srcPath = el.getAttribute('src');
+              // Ensure proper path separator
+              if (!srcPath.startsWith('/')) {
+                srcPath = '/' + srcPath;
+              }
+              urlData = new URL(tmp.origin + srcPath);
+            } catch (e) {
+              console.warn('Invalid URL construction for image src:', el.getAttribute('src'), e.message);
+              el.remove();
+              continue;
+            }
+          }
         }
-      }
-      else if (el.getAttribute('src')) {
-        if (el.getAttribute('src').includes("https://") || el.getAttribute('src').includes("http://")) {
-          urlData = new URL(el.getAttribute('src'));
+        // convert media-image to a valid img tag
+        if (urlData.href) {
+          let img = `<img src="${urlData.href}" alt="${el.getAttribute('alt') || ''}" />`;
+          el.replaceWith(img);
+        } else {
+          console.warn('No valid URL found for image element, removing');
+          el.remove();
         }
-        else {
-          let tmp = new URL(siteLocation);
-          urlData = new URL(tmp.origin + el.getAttribute('src'));
-        }
-      }
-      // convert media-image to a valid img tag
-      if (urlData.href) {
-        let img = `<img src="${urlData.href}" alt="${el.getAttribute('alt') || ''}" />`;
-        el.replaceWith(img);
-      } else {
+      } catch (e) {
+        console.warn('Error processing image element:', e.message);
         el.remove();
       }
     }
@@ -1046,17 +1135,30 @@ export async function pagesAsData(site, ancestor, siteLocation) {
     let siteLocationURL = new URL(siteLocation);
     const links = doc.querySelectorAll('a');
     for await (const el of links) {
-      let urlData = {};
-      let href = el.getAttribute('href') || '';
-      // ensure we have valid href data to draw from
-      if (el.getAttribute('href')) {
-        urlData = new URL(el.getAttribute('href'), siteLocation);
+      try {
+        let urlData = {};
+        let href = el.getAttribute('href') || '';
+        // ensure we have valid href data to draw from
+        if (el.getAttribute('href')) {
+          try {
+            urlData = new URL(el.getAttribute('href'), siteLocation);
+          } catch (e) {
+            console.warn('Invalid URL for link href:', el.getAttribute('href'), e.message);
+            el.remove();
+            continue;
+          }
         if (el.getAttribute('href').startsWith('/')) {
           // account for full qualified links instead of relative
-          urlData = new URL(el.getAttribute('href'), siteLocationURL.origin);
+          try {
+            urlData = new URL(el.getAttribute('href'), siteLocationURL.origin);
+          } catch (e) {
+            console.warn('Invalid URL construction for absolute link:', el.getAttribute('href'), e.message);
+            el.remove();
+            continue;
+          }
           // looking for drupal path which could have q=whatever for the slug
           if (urlData.searchParams && urlData.searchParams.has('q')) {
-            href = urlData.searchParams.get('q').replace('/','-') + '.xhtml';
+            href = urlData.searchParams.get('q').replace(/\//g,'-') + '.xhtml';
           }
         }
         else {
@@ -1067,36 +1169,50 @@ export async function pagesAsData(site, ancestor, siteLocation) {
             }
           })) {
             // if we found a match, convert the link to the page link in the book
-            href = urlData.pathname.replace('/','-') + '.xhtml';
+            href = urlData.pathname.replace(/\//g,'-') + '.xhtml';
           }
         }
       }
-      // convert relative links to absolute links
-      if (href) {
-        el.setAttribute('href', href);
-      } else {
+        // convert relative links to absolute links
+        if (href) {
+          el.setAttribute('href', href);
+        } else {
+          el.remove();
+        }
+      } catch (e) {
+        console.warn('Error processing link element:', e.message);
         el.remove();
       }
-    }
-    // set back to the innerHTML of the wrapper after doing our processing for links in the content
-    content = doc.querySelector('#wrapper').innerHTML;
-    /*
-    // this would hydrate the web components with scoped CSS definitions but is experimental
-    let response = await fetch(`https://webcomponents.hax.cloud/api/hydrateSsr`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          type: 'html',
-          q: content,
-        }),
       }
-    ).then((d) => d.ok ? d.text() : false);
-    */
-    data.push({
-      title: item.title,
-      content: content,
-      filename: item.slug.replace('/','-') + '.xhtml',
-    });
+      // set back to the innerHTML of the wrapper after doing our processing for links in the content
+      const wrapperElement = doc.querySelector('#wrapper');
+      if (wrapperElement) {
+        content = wrapperElement.innerHTML;
+      } else {
+        console.warn('No wrapper element found for item:', item.title || item.id);
+        content = '';
+      }
+      /*
+      // this would hydrate the web components with scoped CSS definitions but is experimental
+      let response = await fetch(`https://webcomponents.hax.cloud/api/hydrateSsr`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            type: 'html',
+            q: content,
+          }),
+        }
+      ).then((d) => d.ok ? d.text() : false);
+      */
+      data.push({
+        title: item.title || 'Untitled',
+        content: content,
+        filename: (item.slug ? item.slug.replace(/\//g,'-') : item.id) + '.xhtml',
+      });
+    } catch (e) {
+      console.warn('Error processing page:', (item && item.title) || 'unknown', e.message);
+      // Continue to next item rather than stopping the entire process
+    }
   }
   return data;
 }
