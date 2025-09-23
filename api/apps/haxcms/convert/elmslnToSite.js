@@ -40,9 +40,11 @@ export default async function handler(req, res) {
       }
       var start = process.hrtime();
       var elapsed = 0;
+      // Use much longer timeout for local development (3600s = 1 hour), keep 300s for production
+      const timeoutLimit = process.env.OPEN_APIS_ENV === 'development' ? 3600 : 300;
       for await (const item of site.items) {
         // time out on vercel is 300s, let's not go above the greatest number ever
-        if (elapsed <= 300) {
+        if (elapsed <= timeoutLimit) {
           item.contents = await fetch(`${process.env.OPEN_APIS_ENV !== 'development' ? 'https': 'http'}://${process.env.VERCEL_URL}/api/services/website/cacheAddress?q=${base}/${item.location.replace(`/${siteName}/`,'')}`, __fetchOptions).then((d) => d.ok ? d.json() : '').then((r) => r.data);
         }
         else {
