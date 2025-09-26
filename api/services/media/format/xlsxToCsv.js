@@ -1,7 +1,7 @@
-// docxToHtml
-import { stdResponse } from "../../../utilities/requestHelpers.js";
-import df from 'mammoth';
-const { convertToHtml } = df;
+// xlsxToCsv.js
+// Convert Excel files (.xls, .xlsx) to CSV format
+import { stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import * as XLSX from 'xlsx';
 
 // Helper function to parse multipart form data manually
 function parseMultipartData(buffer, boundary) {
@@ -37,14 +37,13 @@ function parseMultipartData(buffer, boundary) {
 }
 
 export default async function handler(req, res) {
-  // this allows mapping document styles to html tags
-  var mammothOptions = {
-    styleMap: [
-        "u => em", // convert underline to emphasis tag
-        "strike => del" // convert strike to del tag instead of s
-    ]
-  };
-
+  let responseHandled = false;
+  
+  // Accept additional parameters for sheet selection and formatting
+  const sheetName = req.query?.sheet || null;
+  const includeHeaders = req.query?.headers !== 'false';
+  
+  
   // Read raw request body
   const chunks = [];
   
@@ -72,37 +71,56 @@ export default async function handler(req, res) {
       }
       
       // Validate file extension
-      const validExtensions = ['.docx', '.doc'];
+      const validExtensions = ['.xls', '.xlsx'];
       const hasValidExtension = validExtensions.some(ext => 
         fileInfo.filename.toLowerCase().endsWith(ext)
       );
       
       if (!hasValidExtension) {
-        throw new Error(`Invalid file type. Expected .docx or .doc, got: ${fileInfo.filename}`);
+        throw new Error(`Invalid file type. Expected .xls or .xlsx, got: ${fileInfo.filename}`);
       }
       
-      let html = '';
+      // Parse Excel file
+      const workbook = XLSX.read(fileInfo.data, { type: 'buffer' });
       
-      // Process DOCX file with mammoth
-      try {
-        html = await convertToHtml({buffer: fileInfo.data}, mammothOptions)
-          .then((result) => {
-            return result.value; // The generated HTML
-          });
-      } catch (e) {
-        // put in the output
-        html = `Error converting document: ${e.message}`;
+      // Determine which sheet to use
+      let selectedSheetName = sheetName;
+      if (!selectedSheetName || !workbook.SheetNames.includes(selectedSheetName)) {
+        selectedSheetName = workbook.SheetNames[0];
       }
+      
+      if (!selectedSheetName) {
+        throw new Error('No sheets found in Excel file');
+      }
+      
+      const worksheet = workbook.Sheets[selectedSheetName];
+      
+      // Convert to CSV
+      const csvOptions = {
+        header: includeHeaders ? 1 : 0,
+        blankrows: false,
+        strip: true,
+      };
+      
+      const csvData = XLSX.utils.sheet_to_csv(worksheet, csvOptions)
+        .split('\n')
+        .filter(line => line.trim().length > 0)
+        .join('\n');
+      
       
       res = stdResponse(res, {
-        contents: html,
+        contents: csvData,
         filename: fileInfo.filename,
+        originalFilename: fileInfo.filename,
+        sheetNames: workbook.SheetNames,
+        selectedSheet: selectedSheetName,
+        format: 'csv'
       });
       
     } catch (error) {
-      console.error('docxToHtml: Error processing file:', error.message);
+      console.error('xlsxToCsv: Error processing file:', error.message);
       res = stdResponse(res, {
-        error: `Error processing Word document: ${error.message}`,
+        error: `Error processing Excel file: ${error.message}`,
         contents: '',
         filename: null
       }, { status: 400 });
@@ -110,7 +128,7 @@ export default async function handler(req, res) {
   });
   
   req.on('error', (err) => {
-    console.error('docxToHtml: Request error:', err.message);
+    console.error('xlsxToCsv: Request error:', err.message);
     res = stdResponse(res, { error: err.message }, { status: 500 });
   });
 }

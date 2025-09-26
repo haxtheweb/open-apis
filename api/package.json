@@ -23,6 +23,7 @@
     "node-html-parser": "6.1.10",
     "html-to-docx": "1.8.0",
     "text-readability": "1.0.5",
-    "pretty": "2.0.0"
+    "pretty": "2.0.0",
+    "xlsx": "0.18.5"
   }
 }
