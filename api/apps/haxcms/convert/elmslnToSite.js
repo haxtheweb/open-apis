@@ -32,12 +32,6 @@ export default async function handler(req, res) {
       let __fetchOptions = {
         method: "GET",
       };
-      // test for aanda elms as "basic auth" is required to bypass azure
-      // and defer to app level permissions handling
-      if (url.includes('.aanda.psu.edu') || url.includes('.ed.science.psu.edu')) {
-        let buff = Buffer.from(process.env.ELMSLN_VERCEL_SERVICE_AUTH).toString('base64');
-        __fetchOptions.headers = {'Authorization': 'Basic ' + buff};
-      }
       var start = process.hrtime();
       var elapsed = 0;
       // Use much longer timeout for local development (3600s = 1 hour), keep 300s for production

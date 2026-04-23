@@ -16,12 +16,6 @@ export default async function handler(req, res) {
       let __fetchOptions = {
         method: "GET",
       };
-        // test for aanda elms as "basic auth" is required to bypass azure
-        // and defer to app level permissions handling
-      if (req.query.q.includes('.aanda.psu.edu') || req.query.q.includes('.ed.science.psu.edu')) {
-        let buff = Buffer.from(process.env.ELMSLN_VERCEL_SERVICE_AUTH).toString('base64');
-        __fetchOptions.headers = {'Authorization': 'Basic ' + buff};
-      }
       content = await fetch(req.query.q, __fetchOptions).then((d) => d.ok ? d.text(): '');
     }
     catch {

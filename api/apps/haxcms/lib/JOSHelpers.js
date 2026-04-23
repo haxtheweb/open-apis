@@ -22,25 +22,11 @@ export async function resolveSiteData(siteLocation, siteData = null) {
     site.items = siteData.items;
   }
   else {
-    // test for some internal API implementation differences
-    if (siteLocation.includes('.aanda.psu.edu') ||
-    siteLocation.includes('.ed.science.psu.edu')) {
-      // test for aanda elms as "basic auth" is required to bypass azure
-      // and defer to app level permissions handling
-      let buff = Buffer.from(process.env.ELMSLN_VERCEL_SERVICE_AUTH).toString('base64');
-      site.__fetchOptions = {
-        method: "GET",
-        headers: {'Authorization': 'Basic ' + buff}
-      };
-      // need to store pathname for elms deploys bc of how paths were resolved
-      let tmp = new URL(siteLocation);
-      site.__siteLocationPathName = tmp.pathname;
-      // location isn't at site.json bc this is generated path
-      // so we need to lob this off from the path instead of site.json
-      if (siteLocation.includes('/haxapi/loadJOS/')) {
-        let urlData = new URL(siteLocation);``
-        site.__siteFileBase = urlData.pathname;
-      }
+    // support generated ELMS loadJOS paths where site.json is virtualized
+    if (siteLocation.includes('/haxapi/loadJOS/')) {
+      let urlData = new URL(siteLocation);
+      site.__siteLocationPathName = urlData.pathname;
+      site.__siteFileBase = urlData.pathname;
     }
     await site.load(`${siteLocation}/site.json`, site.__fetchOptions);
   }
@@ -180,25 +166,6 @@ export async function courseStatsFromOutline(siteLocation, siteData = null, ance
                 let vimData = await fetch(`https://vimeo.com/api/oembed.json?url=${urlData.href}`).then((d) => d.ok ? d.json(): {});
                 if (vimData?.duration) {
                   videoLength += parseInt(vimData.duration);
-                }
-              break;
-              case 'https://media.aanda.psu.edu':
-                // ensure we have an id param
-                if (el.getAttribute('id') && el.getAttribute('id').includes('node-')) {
-                  let nid = el.getAttribute('id').replace('node-', '');
-                  // elms media server embed code / auto replacement has
-                  // the NID included in the id that goes in the page
-                  if (nid) {
-                    let elmsData = await fetch(`https://media.aanda.psu.edu/node/${nid}.json?deep-load-refs=file`, site.__fetchOptions).then((d) => d.ok ? d.json(): {});
-                    // resolve video vs audio
-                    if (elmsData?.field_video?.metadata?.duration) {
-                      videoLength += parseInt(durationFormatHMSConvert(elmsData.field_video.metadata.duration));
-                    }
-                    else if (elmsData?.field_audio?.metadata?.duration) {
-                      // @todo lump audioLength together?
-                      videoLength += parseInt(durationFormatHMSConvert(elmsData.field_audio.metadata.duration));
-                    }
-                  }
                 }
               break;
               default:
