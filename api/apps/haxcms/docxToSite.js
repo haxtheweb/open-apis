@@ -71,19 +71,19 @@ export default async function handler(req, res) {
       // h1 -> page, h2 -> child page, h3 -> heading, h4 -> subheading (container + page + structure import)
       case 'site':
         let h1s = doc.querySelectorAll('h1');
-        order = 0;
+        let h1Order = 0;
         // if we have no headings, then we need to treat as a single page
         if (h1s.length === 0) {
-          items.push(importSinglePage(buffer.filename.replace('.docx',''), doc.querySelector('#docx-import-wrapper').innerHTML, parentId));
+          items.push(importSinglePage(buffer.filename.replace('.docx',''), processSinglePageContent(doc.querySelector('#docx-import-wrapper')), parentId));
         }
         else {
           for await (const h1 of h1s) {
             let item = new JSONOutlineSchemaItem();
             item.title = h1.innerText.trim().replace('  ', ' ').replace('  ', ' ');
             item.slug = cleanTitle(item.title);
-            item.order = order;
+            item.order = h1Order;
             item.parent = parentId; // null default, supports importing deep structure under a parent though
-            order += 1;
+            h1Order += 1;
             let tmp = await nextUntilElement(h1, ['H1']);
             let h1Children = tmp.siblings;
             let contents = '';
@@ -103,13 +103,13 @@ export default async function handler(req, res) {
             items.push(item);
             // we found an h2 under an h1, associate down more
             if (h2) {
-              order = 0;
+              let h2Order = 0;
               while (h2 !== null && h2.tagName === 'H2') {
                 let item2 = new JSONOutlineSchemaItem();
                 item2.title = h2.innerText.trim().replace('  ', ' ').replace('  ', ' ');
                 item2.slug = item.slug + '/' + cleanTitle(item2.title);
-                item2.order = order;
-                order += 1;
+                item2.order = h2Order;
+                h2Order += 1;
                 item2.indent = 1;
                 // this page's parent is the prev item
                 item2.parent = item.id;
@@ -134,7 +134,7 @@ export default async function handler(req, res) {
         order = 0;
         // if we have no headings, then we need to treat as a single page
         if (els.length === 0) {
-          items.push(importSinglePage(buffer.filename.replace('.docx',''), doc.querySelector('#docx-import-wrapper').innerHTML, parentId));
+          items.push(importSinglePage(buffer.filename.replace('.docx',''), processSinglePageContent(doc.querySelector('#docx-import-wrapper')), parentId));
         }
         else {
           for await (const h1 of els) {
@@ -158,7 +158,7 @@ export default async function handler(req, res) {
       break;
       // h1 -> heading, h2 -> subheading, h3 -> sub-subheading, h4 -> sub-sub-subheading (single page import)
       case 'page':
-        items.push(importSinglePage(buffer.filename.replace('.docx',''), doc.querySelector('#docx-import-wrapper').innerHTML, parentId));
+        items.push(importSinglePage(buffer.filename.replace('.docx',''), processSinglePageContent(doc.querySelector('#docx-import-wrapper')), parentId));
       break;
     }
     res = stdResponse(res,
@@ -169,6 +169,19 @@ export default async function handler(req, res) {
     );
   });
   req.pipe(bb);
+}
+
+function processSinglePageContent(wrapperEl) {
+  if (!wrapperEl) {
+    return '<p></p>';
+  }
+  let content = '';
+  for (const child of wrapperEl.childNodes) {
+    if (child && child.tagName) {
+      content += htmlFromEl(child);
+    }
+  }
+  return content !== '' ? content : wrapperEl.innerHTML;
 }
 
 function importSinglePage(title, content, pValue) {
