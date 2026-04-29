@@ -1,156 +1,439 @@
 // @haxcms/pressbooksToSite
-import { stdResponse } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
 import { JSONOutlineSchemaItem } from "../lib/JSONOutlineSchemaItem.js";
 import { cleanTitle, validURL } from "../lib/JOSHelpers.js";
-import busboy from 'busboy';
+import busboy from "busboy";
 import concat from "concat-stream";
-import { parse } from 'node-html-parser';
+import { parse } from "node-html-parser";
+import { discoverPressbooksBase, fetchJSON, absolutizeRootUrls } from "./lib/wordpressSiteHelpers.js";
+
 export default async function handler(req, res) {
-  var html = '';
-  var buffer = {
-    filename: null,
-    data: null,
-  };
-  var type = "";
-  var method = 'site';
-  var parentId = null;
-  const bb = busboy({ headers: req.headers });
-  bb.on('field', async (name, fieldValue, info) => {
-    if (name === 'method') {
-      method = fieldValue;
-    }
-    else if (name === 'type') {
-      type = fieldValue;
-    }
-    else if (name === 'parentId' && fieldValue !== 'null') {
-      parentId = fieldValue;
-    }
-  });
-  bb.on('file', async (name, file, info) => {
-    const { filename, encoding, mimeType } = info;
-    if(filename.length > 0 && ['text/html'].includes(mimeType)) {
-      file.pipe(concat((fileBuffer) => {
-        buffer.filename = filename;
-        buffer.data = fileBuffer;
-      }));
-    }
-  });
-  // file closed / finished
-  bb.on('close', async () => {
-    if (buffer.data) {
-      try {
-        html = buffer.data
+  const contentType =
+    req && req.headers && req.headers["content-type"]
+      ? req.headers["content-type"]
+      : "";
+  if (contentType.indexOf("multipart/form-data") !== -1) {
+    return handleHtmlFileImport(req, res);
+  }
+
+  let body = {};
+  if (req && req.query && req.query.repoUrl) {
+    body = req.query;
+  }
+  else if (req && req.body && typeof req.body === "object") {
+    body = req.body;
+  }
+  else {
+    body = stdPostBody(req);
+  }
+
+  if (!body || !body.repoUrl) {
+    return invalidRequest(res, "missing `repoUrl` param");
+  }
+
+  let parentId = null;
+  if (body.parentId && body.parentId !== "null") {
+    parentId = body.parentId;
+  }
+
+  const discoveredBase = await discoverPressbooksBase(body.repoUrl);
+  if (!discoveredBase) {
+    return invalidRequest(
+      res,
+      "Unable to discover Pressbooks API from `repoUrl`; expected `/wp-json/pressbooks/v2/*`",
+      422
+    );
+  }
+
+  const importedData = await importPressbooksSite(discoveredBase, parentId);
+  if (!importedData) {
+    return invalidRequest(
+      res,
+      "Pressbooks API discovered but import failed to produce content",
+      422
+    );
+  }
+
+  return stdResponse(
+    res,
+    {
+      data: {
+        items: importedData.items,
+        filename: importedData.filename,
+        files: importedData.files
+      },
+      status: 200
+    },
+    { cache: 180, type: "application/json" }
+  );
+}
+
+async function handleHtmlFileImport(req, res) {
+  return new Promise((resolve) => {
+    let html = "";
+    const buffer = {
+      filename: null,
+      data: null
+    };
+    let type = "";
+    let method = "site";
+    let parentId = null;
+    const bb = busboy({ headers: req.headers });
+    bb.on("field", async (name, fieldValue) => {
+      if (name === "method") {
+        method = fieldValue;
       }
-      catch(e) {
-        // put in the output
-        html = e;
+      else if (name === "type") {
+        type = fieldValue;
       }
-    }
-    const doc = parse(`<div id="import-wrapper">${html}</div>`);
-    let items = [];
-    // find all the h1s, then h2, h3, h4
-    //https://vanillajstoolkit.com/helpers/nextuntil/
-    // while we keep selecting next siblings, and its not another at our level
-    // then we keep selecting
-    // so it's a select all, then a while loop, then while it's not the next
-    // element selection with support for the ending ones
-    let order;
-    switch (method) {
-      // h1 -> page, h2 -> child page, h3 -> heading, h4 -> subheading (container + page + structure import)
-      case 'site':
-        let h1s = doc.querySelectorAll('h1');
-        order = 0;
-        for await (const h1 of h1s) {
-          let item = new JSONOutlineSchemaItem();
-          item.title = h1.innerText.trim().replace('  ', ' ').replace('  ', ' ');
-          item.slug = cleanTitle(item.title);
-          item.order = order;
-          item.parent = parentId; // null default, supports importing deep structure under a parent though
-          order += 1;
-          let tmp = await nextUntilElement(h1, ['H1']);
-          let h1Children = tmp.siblings;
-          let contents = '';
-          let h2 = null;
-          for await (const h1Child of h1Children) {
-            if (h1Child.tagName === 'H2') {
-              // implies we need to drill down bc we have nested pages
-              h2 = h1Child;
-              break;
-            }
-            else if (h2 === null) {
-              contents += htmlFromEl(h1Child);
-            }
-          }
-          // if empty, make it a blank p so it has at least something
-          item.contents = contents !== '' ? contents : getFallbackContent(type);
-          items.push(item);
-          // we found an h2 under an h1, associate down more
-          if (h2) {
-            order = 0;
-            while (h2 !== null && h2.tagName === 'H2') {
-              let item2 = new JSONOutlineSchemaItem();
-              item2.title = h2.innerText.trim().replace('  ', ' ').replace('  ', ' ');
-              item2.slug = item.slug + '/' + cleanTitle(item2.title);
-              item2.order = order;
-              order += 1;
-              item2.indent = 1;
-              // this page's parent is the prev item
-              item2.parent = item.id;
-              // get next h2, or run out at an h1
-              let tmp = await nextUntilElement(h2, ['H1','H2']);
-              let h2Children = tmp.siblings;
-              h2 = tmp.lastEl;
-              let contents2 = '';
-              for await (const h2Child of h2Children) {
-                contents2 += htmlFromEl(h2Child);
-              }
-              item2.contents = contents2 !== '' ? contents2 : '<p></p>';
-              items.push(item2);
-            }
-          }
+      else if (name === "parentId" && fieldValue !== "null") {
+        parentId = fieldValue;
+      }
+    });
+    bb.on("file", async (name, file, info) => {
+      const { filename, mimeType } = info;
+      if (filename.length > 0 && ["text/html"].includes(mimeType)) {
+        file.pipe(
+          concat((fileBuffer) => {
+            buffer.filename = filename;
+            buffer.data = fileBuffer;
+          })
+        );
+      }
+    });
+    bb.on("close", async () => {
+      if (buffer.data) {
+        try {
+          html = buffer.data.toString();
         }
-      break;
-      // h1 -> page, h2 -> heading, h3 -> subheading, h4 -> sub-subheading (flat page structure import, file name === container)
-      case 'branch':
-        let els = doc.querySelectorAll('h1');
-        order = 0;
-        for await (const h1 of els) {
-          let item = new JSONOutlineSchemaItem();
-          item.title = h1.innerText.trim().replace('  ', ' ').replace('  ', ' ');
-          item.slug = cleanTitle(item.title);
-          item.order = order;
-          item.parent = parentId; // null default, supports importing structure under a parent though
-          order += 1;
-          let tmp = await nextUntilElement(h1, ['H1']);
-          let h1Children = tmp.siblings;
-          let contents = '';
-          for await (const h1Child of h1Children) {
+        catch (e) {
+          html = "";
+        }
+      }
+      const doc = parse(`<div id="import-wrapper">${html}</div>`);
+      const items = await convertHtmlDocumentToItems(
+        doc,
+        method,
+        type,
+        parentId,
+        buffer.filename
+      );
+      resolve(
+        stdResponse(res, {
+          items: items,
+          filename: buffer.filename
+        })
+      );
+    });
+    req.pipe(bb);
+  });
+}
+
+async function importPressbooksSite(base, parentId = null) {
+  const toc = await fetchJSON(`${base}/wp-json/pressbooks/v2/toc`);
+  if (
+    !toc ||
+    !Array.isArray(toc["front-matter"]) ||
+    !Array.isArray(toc.parts) ||
+    !Array.isArray(toc["back-matter"])
+  ) {
+    return null;
+  }
+  const siteMetadata = await fetchJSON(`${base}/wp-json/pressbooks/v2/metadata`);
+  const topLevelOrder = {
+    value: 0
+  };
+  const items = [];
+
+  const frontMatterItems = await buildTopLevelSectionItems(
+    base,
+    toc["front-matter"],
+    "front-matter",
+    parentId,
+    topLevelOrder
+  );
+  items.push(...frontMatterItems);
+
+  const partItems = await buildPartAndChapterItems(
+    base,
+    toc.parts,
+    parentId,
+    topLevelOrder
+  );
+  items.push(...partItems);
+
+  const backMatterItems = await buildTopLevelSectionItems(
+    base,
+    toc["back-matter"],
+    "back-matter",
+    parentId,
+    topLevelOrder
+  );
+  items.push(...backMatterItems);
+
+  return {
+    items,
+    files: {},
+    filename: getSiteFilename(siteMetadata, base)
+  };
+}
+
+async function buildTopLevelSectionItems(base, sectionItems, endpointType, parentId, orderRef) {
+  const items = [];
+  for await (const section of sortPressbooksItems(sectionItems)) {
+    if (section && section.export === false) {
+      continue;
+    }
+    const fullData = await fetchPressbooksEntity(base, endpointType, section.id);
+    const item = new JSONOutlineSchemaItem();
+    item.title = getPressbooksItemTitle(section, fullData);
+    item.slug = cleanTitle(item.title);
+    item.order = orderRef.value;
+    orderRef.value += 1;
+    item.parent = parentId;
+    item.contents = getPressbooksItemContent(fullData, section, base);
+    item.metadata = getPressbooksMetadata(section, fullData, endpointType);
+    items.push(item);
+  }
+  return items;
+}
+
+async function buildPartAndChapterItems(base, parts, parentId, orderRef) {
+  const items = [];
+  for await (const part of sortPressbooksItems(parts)) {
+    if (part && part.export === false) {
+      continue;
+    }
+    const partData = await fetchPressbooksEntity(base, "parts", part.id);
+    const partItem = new JSONOutlineSchemaItem();
+    partItem.title = getPressbooksItemTitle(part, partData);
+    partItem.slug = cleanTitle(partItem.title);
+    partItem.order = orderRef.value;
+    orderRef.value += 1;
+    partItem.parent = parentId;
+    partItem.contents = getPressbooksItemContent(partData, part, base);
+    partItem.metadata = getPressbooksMetadata(part, partData, "part");
+    items.push(partItem);
+
+    if (part && Array.isArray(part.chapters)) {
+      let chapterOrder = 0;
+      for await (const chapter of sortPressbooksItems(part.chapters)) {
+        if (chapter && chapter.export === false) {
+          continue;
+        }
+        const chapterData = await fetchPressbooksEntity(base, "chapters", chapter.id);
+        const chapterItem = new JSONOutlineSchemaItem();
+        chapterItem.title = getPressbooksItemTitle(chapter, chapterData);
+        chapterItem.slug = `${partItem.slug}/${cleanTitle(chapterItem.title)}`;
+        chapterItem.order = chapterOrder;
+        chapterOrder += 1;
+        chapterItem.indent = 1;
+        chapterItem.parent = partItem.id;
+        chapterItem.contents = getPressbooksItemContent(chapterData, chapter, base);
+        chapterItem.metadata = getPressbooksMetadata(chapter, chapterData, "chapter");
+        items.push(chapterItem);
+      }
+    }
+  }
+  return items;
+}
+
+async function fetchPressbooksEntity(base, endpointType, id) {
+  if (!id) {
+    return null;
+  }
+  return fetchJSON(`${base}/wp-json/pressbooks/v2/${endpointType}/${id}`);
+}
+
+function sortPressbooksItems(items) {
+  const sorted = Array.isArray(items) ? [...items] : [];
+  sorted.sort((a, b) => {
+    const aOrder = a && a.menu_order !== undefined ? parseInt(a.menu_order) : 0;
+    const bOrder = b && b.menu_order !== undefined ? parseInt(b.menu_order) : 0;
+    return aOrder - bOrder;
+  });
+  return sorted;
+}
+
+function getPressbooksItemTitle(item, fullData) {
+  let title = "";
+  if (fullData && fullData.title) {
+    if (typeof fullData.title === "string") {
+      title = fullData.title;
+    }
+    else if (fullData.title.rendered) {
+      title = fullData.title.rendered;
+    }
+    else if (fullData.title.raw) {
+      title = fullData.title.raw;
+    }
+  }
+  if (title === "" && item && item.title) {
+    if (typeof item.title === "string") {
+      title = item.title;
+    }
+    else if (item.title.rendered) {
+      title = item.title.rendered;
+    }
+    else if (item.title.raw) {
+      title = item.title.raw;
+    }
+  }
+  if (title === "" && item && item.slug) {
+    title = item.slug;
+  }
+  return parse(`<div>${title}</div>`).innerText.trim();
+}
+
+function getPressbooksItemContent(fullData, fallbackItem, base) {
+  let content = "";
+  if (fullData && fullData.content) {
+    if (typeof fullData.content === "string") {
+      content = fullData.content;
+    }
+    else if (fullData.content.rendered) {
+      content = fullData.content.rendered;
+    }
+    else if (fullData.content.raw) {
+      content = fullData.content.raw;
+    }
+  }
+  if (content === "") {
+    if (fallbackItem && fallbackItem.has_post_content) {
+      return "<p></p>";
+    }
+    return "<p></p>";
+  }
+  return absolutizeRootUrls(content, base);
+}
+
+
+function getPressbooksMetadata(item, fullData, sourceType) {
+  const metadata = {
+    sourceType: sourceType,
+    pressbooks: {}
+  };
+  const source = fullData && fullData.link ? fullData.link : item && item.link ? item.link : null;
+  if (source) {
+    metadata.source = source;
+  }
+  const id = fullData && fullData.id ? fullData.id : item && item.id ? item.id : null;
+  if (id) {
+    metadata.pressbooks.id = id;
+  }
+  if (item && item.slug) {
+    metadata.pressbooks.slug = item.slug;
+  }
+  if (item && item.menu_order !== undefined) {
+    metadata.pressbooks.menuOrder = item.menu_order;
+  }
+  if (item && item.status) {
+    metadata.pressbooks.status = item.status;
+  }
+  return metadata;
+}
+
+function getSiteFilename(siteMetadata, base) {
+  if (siteMetadata && siteMetadata.name) {
+    return cleanTitle(siteMetadata.name);
+  }
+  let pathname = "";
+  try {
+    pathname = new URL(base).pathname;
+  }
+  catch (e) {
+    pathname = "";
+  }
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts.length > 0) {
+    return cleanTitle(parts[parts.length - 1]);
+  }
+  return "pressbooks-import";
+}
+
+
+async function convertHtmlDocumentToItems(doc, method, type, parentId, filename) {
+  const items = [];
+  let order;
+  switch (method) {
+    case "site":
+      let h1s = doc.querySelectorAll("h1");
+      order = 0;
+      for await (const h1 of h1s) {
+        let item = new JSONOutlineSchemaItem();
+        item.title = h1.innerText.trim().replace("  ", " ").replace("  ", " ");
+        item.slug = cleanTitle(item.title);
+        item.order = order;
+        item.parent = parentId;
+        order += 1;
+        let tmp = await nextUntilElement(h1, ["H1"]);
+        let h1Children = tmp.siblings;
+        let contents = "";
+        let h2 = null;
+        for await (const h1Child of h1Children) {
+          if (h1Child.tagName === "H2") {
+            h2 = h1Child;
+            break;
+          }
+          else if (h2 === null) {
             contents += htmlFromEl(h1Child);
           }
-          // if empty, make it a blank p so it has at least something
-          item.contents = contents !== '' ? contents : getFallbackContent(type);
-          items.push(item);
         }
-      break;
-      // h1 -> heading, h2 -> subheading, h3 -> sub-subheading, h4 -> sub-sub-subheading (single page import)
-      case 'page':
-        let item = new JSONOutlineSchemaItem();
-        item.title = buffer.filename.replace('.html','');
-        item.slug = cleanTitle(item.title);
-        item.parent = parentId; // null default, supports importing to a new page under a parent though
-        // parser helps ensure validity of HTML structure, though it should
-        // be ok given that it came from mammoth
-        item.contents = doc.querySelector('#import-wrapper').innerHTML;
-      break;
-    }
-    res = stdResponse(res,
-      {
-        items: items,
-        filename: buffer.filename,
+        item.contents = contents !== "" ? contents : getFallbackContent(type);
+        items.push(item);
+        if (h2) {
+          order = 0;
+          while (h2 !== null && h2.tagName === "H2") {
+            let item2 = new JSONOutlineSchemaItem();
+            item2.title = h2.innerText.trim().replace("  ", " ").replace("  ", " ");
+            item2.slug = item.slug + "/" + cleanTitle(item2.title);
+            item2.order = order;
+            order += 1;
+            item2.indent = 1;
+            item2.parent = item.id;
+            let tmp = await nextUntilElement(h2, ["H1", "H2"]);
+            let h2Children = tmp.siblings;
+            h2 = tmp.lastEl;
+            let contents2 = "";
+            for await (const h2Child of h2Children) {
+              contents2 += htmlFromEl(h2Child);
+            }
+            item2.contents = contents2 !== "" ? contents2 : "<p></p>";
+            items.push(item2);
+          }
+        }
       }
-    );
-  });
-  req.pipe(bb);
+      break;
+    case "branch":
+      let els = doc.querySelectorAll("h1");
+      order = 0;
+      for await (const h1 of els) {
+        let item = new JSONOutlineSchemaItem();
+        item.title = h1.innerText.trim().replace("  ", " ").replace("  ", " ");
+        item.slug = cleanTitle(item.title);
+        item.order = order;
+        item.parent = parentId;
+        order += 1;
+        let tmp = await nextUntilElement(h1, ["H1"]);
+        let h1Children = tmp.siblings;
+        let contents = "";
+        for await (const h1Child of h1Children) {
+          contents += htmlFromEl(h1Child);
+        }
+        item.contents = contents !== "" ? contents : getFallbackContent(type);
+        items.push(item);
+      }
+      break;
+    case "page":
+      let item = new JSONOutlineSchemaItem();
+      item.title = filename ? filename.replace(".html", "") : "new page";
+      item.slug = cleanTitle(item.title);
+      item.parent = parentId;
+      item.contents = doc.querySelector("#import-wrapper").innerHTML;
+      items.push(item);
+      break;
+  }
+  return items;
 }
 
 // replacement for tabs, also support for single line video player calls

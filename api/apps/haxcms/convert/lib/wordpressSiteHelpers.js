@@ -1,0 +1,479 @@
+import { JSONOutlineSchemaItem } from "../../lib/JSONOutlineSchemaItem.js";
+import { cleanTitle } from "../../lib/JOSHelpers.js";
+import { parse } from "node-html-parser";
+
+export async function fetchJSON(url, fetchOptions = {}) {
+  try {
+    const response = await fetch(url, fetchOptions);
+    if (!response.ok) {
+      return null;
+    }
+    return await response.json();
+  }
+  catch (e) {
+    return null;
+  }
+}
+
+export async function fetchJSONWithMeta(url, fetchOptions = {}) {
+  try {
+    const response = await fetch(url, fetchOptions);
+    let data = null;
+    try {
+      data = await response.json();
+    }
+    catch (e) {
+      data = null;
+    }
+    return {
+      ok: response.ok,
+      status: response.status,
+      headers: response.headers,
+      data: data
+    };
+  }
+  catch (e) {
+    return {
+      ok: false,
+      status: 0,
+      headers: null,
+      data: null
+    };
+  }
+}
+
+export function absolutizeRootUrls(content, base) {
+  let origin = "";
+  try {
+    const parsed = new URL(base);
+    origin = `${parsed.protocol}//${parsed.host}`;
+  }
+  catch (e) {
+    origin = "";
+  }
+  if (origin === "") {
+    return content;
+  }
+  return content
+    .replace(/href="\//g, `href="${origin}/`)
+    .replace(/src="\//g, `src="${origin}/`)
+    .replace(/poster="\//g, `poster="${origin}/`)
+    .replace(/srcset="\//g, `srcset="${origin}/`);
+}
+
+export function buildWordPressBaseCandidates(inputUrl, stopSegments = []) {
+  const candidates = [];
+  try {
+    const parsed = new URL(inputUrl);
+    const origin = `${parsed.protocol}//${parsed.host}`;
+    let pathParts = parsed.pathname.split("/").filter(Boolean);
+    for (let i = 0; i < pathParts.length; i += 1) {
+      if (stopSegments.includes(pathParts[i])) {
+        pathParts = pathParts.slice(0, i);
+        break;
+      }
+    }
+    for (let i = pathParts.length; i >= 0; i -= 1) {
+      const candidate = i > 0 ? `${origin}/${pathParts.slice(0, i).join("/")}` : origin;
+      if (!candidates.includes(candidate)) {
+        candidates.push(candidate);
+      }
+    }
+  }
+  catch (e) {
+    return [];
+  }
+  return candidates;
+}
+
+function hasNamespace(payload, namespaceName) {
+  if (!payload || !Array.isArray(payload.namespaces)) {
+    return false;
+  }
+  return payload.namespaces.includes(namespaceName);
+}
+
+export async function discoverWordPressBase(inputUrl) {
+  const candidates = buildWordPressBaseCandidates(inputUrl, [
+    "wp-json",
+    "wp-admin",
+    "wp-login.php",
+    "front-matter",
+    "chapter",
+    "back-matter",
+    "part",
+    "toc"
+  ]);
+  for await (const candidate of candidates) {
+    const payload = await fetchJSON(`${candidate}/wp-json/`);
+    if (hasNamespace(payload, "wp/v2")) {
+      return {
+        base: candidate,
+        root: payload
+      };
+    }
+  }
+  return null;
+}
+
+export async function discoverPressbooksBase(inputUrl) {
+  const candidates = buildWordPressBaseCandidates(inputUrl, [
+    "wp-json",
+    "front-matter",
+    "chapter",
+    "back-matter",
+    "part",
+    "toc"
+  ]);
+  for await (const candidate of candidates) {
+    const payload = await fetchJSON(`${candidate}/wp-json/`);
+    if (hasNamespace(payload, "pressbooks/v2")) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+export async function fetchWordPressCollection(base, route, fields = [], maxPages = 25, perPage = 100) {
+  let page = 1;
+  let items = [];
+  while (page <= maxPages) {
+    let url = `${base}/wp-json/wp/v2/${route}?per_page=${perPage}&page=${page}`;
+    if (fields.length > 0) {
+      url += `&_fields=${fields.join(",")}`;
+    }
+    const response = await fetchJSONWithMeta(url);
+    if (!response.ok) {
+      return {
+        items: items,
+        status: response.status,
+        error: response.data,
+        complete: false
+      };
+    }
+    if (!Array.isArray(response.data) || response.data.length === 0) {
+      return {
+        items: items,
+        status: response.status,
+        error: null,
+        complete: true
+      };
+    }
+    items = items.concat(response.data);
+    let totalPages = 1;
+    if (response.headers && response.headers.get("x-wp-totalpages")) {
+      totalPages = parseInt(response.headers.get("x-wp-totalpages"));
+      if (Number.isNaN(totalPages) || totalPages < 1) {
+        totalPages = 1;
+      }
+    }
+    if (page >= totalPages) {
+      return {
+        items: items,
+        status: response.status,
+        error: null,
+        complete: true
+      };
+    }
+    page += 1;
+  }
+  return {
+    items: items,
+    status: 200,
+    error: null,
+    complete: false
+  };
+}
+
+function renderedToText(value) {
+  let text = "";
+  if (typeof value === "string") {
+    text = value;
+  }
+  else if (value && value.rendered) {
+    text = value.rendered;
+  }
+  else if (value && value.raw) {
+    text = value.raw;
+  }
+  if (text === "") {
+    return "";
+  }
+  return parse(`<div>${text}</div>`).innerText.trim();
+}
+
+function renderedToHtml(value) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value && value.rendered) {
+    return value.rendered;
+  }
+  if (value && value.raw) {
+    return value.raw;
+  }
+  return "";
+}
+
+function normalizeNumeric(value, fallback = 0) {
+  const normalized = parseInt(value);
+  if (Number.isNaN(normalized)) {
+    return fallback;
+  }
+  return normalized;
+}
+
+function buildMenuPageOrderMap(menuItems) {
+  const pageOrderMap = {};
+  if (!Array.isArray(menuItems)) {
+    return pageOrderMap;
+  }
+  const sorted = [...menuItems];
+  sorted.sort((a, b) => normalizeNumeric(a.menu_order, 0) - normalizeNumeric(b.menu_order, 0));
+  for (let i = 0; i < sorted.length; i += 1) {
+    const item = sorted[i];
+    if (!item) {
+      continue;
+    }
+    const objectType = item.object ? item.object : "";
+    const itemType = item.type ? item.type : "";
+    if (objectType === "page" || itemType === "post_type") {
+      const objectId = normalizeNumeric(item.object_id, 0);
+      if (objectId > 0 && pageOrderMap[objectId] === undefined) {
+        pageOrderMap[objectId] = i;
+      }
+    }
+  }
+  return pageOrderMap;
+}
+
+function buildPageSegment(page) {
+  if (page && page.slug && page.slug !== "") {
+    return cleanTitle(page.slug);
+  }
+  const title = renderedToText(page && page.title ? page.title : "");
+  return cleanTitle(title !== "" ? title : "page");
+}
+
+function sortPagesForTree(pages, menuPageOrderMap = {}) {
+  const sorted = [...pages];
+  sorted.sort((a, b) => {
+    const aId = normalizeNumeric(a.id, 0);
+    const bId = normalizeNumeric(b.id, 0);
+    const aMenu = menuPageOrderMap[aId] !== undefined ? menuPageOrderMap[aId] : Number.MAX_SAFE_INTEGER;
+    const bMenu = menuPageOrderMap[bId] !== undefined ? menuPageOrderMap[bId] : Number.MAX_SAFE_INTEGER;
+    if (aMenu !== bMenu) {
+      return aMenu - bMenu;
+    }
+    const aOrder = normalizeNumeric(a.menu_order, 0);
+    const bOrder = normalizeNumeric(b.menu_order, 0);
+    if (aOrder !== bOrder) {
+      return aOrder - bOrder;
+    }
+    return renderedToText(a.title).localeCompare(renderedToText(b.title));
+  });
+  return sorted;
+}
+
+function getSiteFilenameFromRoot(root, base) {
+  if (root && root.name) {
+    return cleanTitle(root.name);
+  }
+  let pathname = "";
+  try {
+    pathname = new URL(base).pathname;
+  }
+  catch (e) {
+    pathname = "";
+  }
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts.length > 0) {
+    return cleanTitle(parts[parts.length - 1]);
+  }
+  return "wordpress-import";
+}
+
+export async function buildWordPressAdapterContext(repoUrl, settings = {}) {
+  const discovered = await discoverWordPressBase(repoUrl);
+  if (!discovered || !discovered.base) {
+    return {
+      error: "Unable to discover WordPress API from `repoUrl`; expected `/wp-json/wp/v2/*`"
+    };
+  }
+  const pagesResponse = await fetchWordPressCollection(
+    discovered.base,
+    "pages",
+    ["id", "slug", "title", "content", "parent", "menu_order", "link", "status", "date", "modified"],
+    settings.maxPages ? settings.maxPages : 25,
+    settings.perPage ? settings.perPage : 100
+  );
+  const menusResponse = await fetchWordPressCollection(
+    discovered.base,
+    "menus",
+    ["id", "name", "slug"],
+    10,
+    100
+  );
+  const menuItemsResponse = await fetchWordPressCollection(
+    discovered.base,
+    "menu-items",
+    ["id", "menu_order", "parent", "object", "object_id", "type", "title", "url", "menu"],
+    10,
+    100
+  );
+  const postsResponse = await fetchWordPressCollection(
+    discovered.base,
+    "posts",
+    ["id", "slug", "title", "link", "status", "date"],
+    10,
+    100
+  );
+  return {
+    base: discovered.base,
+    root: discovered.root,
+    repoUrl: repoUrl,
+    settings: settings,
+    pagesResponse: pagesResponse,
+    menusResponse: menusResponse,
+    menuItemsResponse: menuItemsResponse,
+    postsResponse: postsResponse
+  };
+}
+
+async function wordpressPagesAdapter(context) {
+  const pagesResponse = context.pagesResponse;
+  if (!pagesResponse || pagesResponse.status >= 400) {
+    return {
+      error:
+        "WordPress pages endpoint is not publicly accessible (authentication required or blocked)",
+      status: pagesResponse ? pagesResponse.status : 0
+    };
+  }
+  const allPages = Array.isArray(pagesResponse.items) ? pagesResponse.items : [];
+  const pages = allPages.filter((page) => {
+    if (!page || !page.id) {
+      return false;
+    }
+    if (page.status === "trash") {
+      return false;
+    }
+    return true;
+  });
+
+  const menuItems = context.menuItemsResponse && Array.isArray(context.menuItemsResponse.items)
+    ? context.menuItemsResponse.items
+    : [];
+  const menuPageOrderMap = buildMenuPageOrderMap(menuItems);
+
+  const pageLookup = {};
+  pages.forEach((page) => {
+    pageLookup[normalizeNumeric(page.id, 0)] = page;
+  });
+  const pagesByParent = {};
+  pages.forEach((page) => {
+    let parentId = normalizeNumeric(page.parent, 0);
+    if (!pageLookup[parentId]) {
+      parentId = 0;
+    }
+    if (!pagesByParent[parentId]) {
+      pagesByParent[parentId] = [];
+    }
+    pagesByParent[parentId].push(page);
+  });
+  Object.keys(pagesByParent).forEach((parentKey) => {
+    pagesByParent[parentKey] = sortPagesForTree(pagesByParent[parentKey], menuPageOrderMap);
+  });
+
+  const items = [];
+  const wpToJosMap = {};
+  const visited = {};
+  const configuredParent = context.settings && context.settings.parentId ? context.settings.parentId : null;
+
+  function walkTree(parentWpId, josParentId, depth) {
+    const siblings = pagesByParent[parentWpId] ? pagesByParent[parentWpId] : [];
+    for (let i = 0; i < siblings.length; i += 1) {
+      const page = siblings[i];
+      const wpId = normalizeNumeric(page.id, 0);
+      if (wpId === 0 || visited[wpId]) {
+        continue;
+      }
+      visited[wpId] = true;
+      const item = new JSONOutlineSchemaItem();
+      const title = renderedToText(page.title);
+      const segment = buildPageSegment(page);
+      item.title = title !== "" ? title : segment;
+      if (josParentId !== null && wpToJosMap[parentWpId]) {
+        item.slug = `${wpToJosMap[parentWpId].slug}/${segment}`;
+      }
+      else {
+        item.slug = segment;
+      }
+      item.order = i;
+      item.indent = depth;
+      item.parent = josParentId !== null ? josParentId : configuredParent;
+      const pageContent = renderedToHtml(page.content);
+      item.contents = pageContent !== "" ? absolutizeRootUrls(pageContent, context.base) : "<p></p>";
+      item.metadata = {
+        sourceType: "wordpress-page",
+        source: page.link ? page.link : null,
+        wordpress: {
+          id: wpId,
+          parent: normalizeNumeric(page.parent, 0),
+          menuOrder: normalizeNumeric(page.menu_order, 0),
+          status: page.status ? page.status : "",
+          date: page.date ? page.date : "",
+          modified: page.modified ? page.modified : ""
+        }
+      };
+      items.push(item);
+      wpToJosMap[wpId] = item;
+      walkTree(wpId, item.id, depth + 1);
+    }
+  }
+  walkTree(0, null, 0);
+  const unvisited = pages.filter((page) => !visited[normalizeNumeric(page.id, 0)]);
+  const sortedUnvisited = sortPagesForTree(unvisited, menuPageOrderMap);
+  if (sortedUnvisited.length > 0) {
+    if (!pagesByParent[0]) {
+      pagesByParent[0] = [];
+    }
+    sortedUnvisited.forEach((page) => {
+      pagesByParent[0].push(page);
+    });
+    pagesByParent[0] = sortPagesForTree(pagesByParent[0], menuPageOrderMap);
+    walkTree(0, null, 0);
+  }
+
+  return {
+    items: items,
+    files: {},
+    filename: getSiteFilenameFromRoot(context.root, context.base),
+    wordpress: {
+      pages: {
+        status: pagesResponse.status,
+        count: pages.length
+      },
+      menus: {
+        status: context.menusResponse ? context.menusResponse.status : 0,
+        count: context.menusResponse && Array.isArray(context.menusResponse.items)
+          ? context.menusResponse.items.length
+          : 0
+      },
+      menuItems: {
+        status: context.menuItemsResponse ? context.menuItemsResponse.status : 0,
+        count: menuItems.length
+      },
+      posts: {
+        status: context.postsResponse ? context.postsResponse.status : 0,
+        count: context.postsResponse && Array.isArray(context.postsResponse.items)
+          ? context.postsResponse.items.length
+          : 0,
+        imported: false
+      }
+    }
+  };
+}
+
+export const wordpressSiteAdapters = {
+  pages: wordpressPagesAdapter
+};
