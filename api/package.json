@@ -21,6 +21,7 @@
     "concat-stream": "2.0.0",
     "text-vide": "1.5.0",
     "node-html-parser": "6.1.10",
+    "pdfjs-dist": "^4.10.38",
     "html-to-docx": "1.8.0",
     "text-readability": "1.0.5",
     "pretty": "2.0.0",

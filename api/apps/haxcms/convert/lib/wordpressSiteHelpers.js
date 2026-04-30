@@ -15,6 +15,19 @@ export async function fetchJSON(url, fetchOptions = {}) {
   }
 }
 
+export async function fetchText(url, fetchOptions = {}) {
+  try {
+    const response = await fetch(url, fetchOptions);
+    if (!response.ok) {
+      return null;
+    }
+    return await response.text();
+  }
+  catch (e) {
+    return null;
+  }
+}
+
 export async function fetchJSONWithMeta(url, fetchOptions = {}) {
   try {
     const response = await fetch(url, fetchOptions);
@@ -202,17 +215,234 @@ function renderedToText(value) {
   return parse(`<div>${text}</div>`).innerText.trim();
 }
 
-function renderedToHtml(value) {
-  if (typeof value === "string") {
+function valueToBoolean(value, fallback = false) {
+  if (typeof value === "boolean") {
     return value;
   }
-  if (value && value.rendered) {
-    return value.rendered;
+  if (typeof value === "number") {
+    return value !== 0;
   }
-  if (value && value.raw) {
-    return value.raw;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if ([ "true", "1", "yes", "on" ].includes(normalized)) {
+      return true;
+    }
+    if ([ "false", "0", "no", "off" ].includes(normalized)) {
+      return false;
+    }
+  }
+  return fallback;
+}
+
+function valueToNumber(value, fallback = 0) {
+  const normalized = parseInt(value);
+  if (Number.isNaN(normalized)) {
+    return fallback;
+  }
+  return normalized;
+}
+
+function renderedToHtml(value, settings = {}) {
+  let rendered = "";
+  let raw = "";
+  if (typeof value === "string") {
+    rendered = value;
+    raw = value;
+  }
+  else if (value && typeof value === "object") {
+    if (typeof value.rendered === "string") {
+      rendered = value.rendered;
+    }
+    if (typeof value.raw === "string") {
+      raw = value.raw;
+    }
+  }
+  const contentMode = settings && settings.contentMode
+    ? `${settings.contentMode}`.toLowerCase()
+    : "rendered";
+  let html = "";
+  let source = "";
+
+  if (contentMode === "raw") {
+    if (raw !== "") {
+      html = raw;
+      source = "raw";
+    }
+    else if (rendered !== "") {
+      html = rendered;
+      source = "rendered";
+    }
+  }
+  else if (contentMode === "rendered-first") {
+    if (rendered !== "") {
+      html = rendered;
+      source = "rendered";
+    }
+    else if (raw !== "") {
+      html = raw;
+      source = "raw";
+    }
+  }
+  else {
+    if (rendered !== "") {
+      html = rendered;
+      source = "rendered";
+    }
+  }
+
+  const allowRawFallback = valueToBoolean(settings.allowRawFallback, false);
+  if (html === "" && allowRawFallback && raw !== "") {
+    html = raw;
+    source = "raw";
+  }
+
+  return {
+    html: html,
+    source: source
+  };
+}
+
+function analyzeWordPressTokens(content) {
+  const html = typeof content === "string" ? content : "";
+  if (html === "") {
+    return {
+      tokenCount: 0,
+      gutenbergCommentCount: 0,
+      shortcodeCount: 0
+    };
+  }
+  const gutenbergComments = html.match(/<!--\s*\/?wp:[\s\S]*?-->/g);
+  const shortcodes = html.match(/\[(\/)?[a-zA-Z][\w-]*(?:[^\]]*)\]/g);
+  const gutenbergCommentCount = gutenbergComments ? gutenbergComments.length : 0;
+  const shortcodeCount = shortcodes ? shortcodes.length : 0;
+  return {
+    tokenCount: gutenbergCommentCount + shortcodeCount,
+    gutenbergCommentCount: gutenbergCommentCount,
+    shortcodeCount: shortcodeCount
+  };
+}
+
+function stripGutenbergCommentTokens(content) {
+  if (typeof content !== "string" || content === "") {
+    return "";
+  }
+  return content.replace(/<!--\s*\/?wp:[\s\S]*?-->/g, "");
+}
+
+function unwrapShortcodes(content) {
+  if (typeof content !== "string" || content === "") {
+    return "";
+  }
+  let output = content;
+  let previous = null;
+  const wrappingShortcodePattern = /\[([a-zA-Z][\w-]*)([^\]]*)\]([\s\S]*?)\[\/\1\]/g;
+  while (output !== previous) {
+    previous = output;
+    output = output.replace(wrappingShortcodePattern, "$3");
+  }
+  return output.replace(/\[(\/)?[a-zA-Z][\w-]*(?:[^\]]*)\]/g, "");
+}
+
+function extractLikelyPageContent(frontendHtml) {
+  if (typeof frontendHtml !== "string" || frontendHtml === "") {
+    return "";
+  }
+  const doc = parse(frontendHtml);
+  const selectors = [
+    "main .entry-content",
+    "article .entry-content",
+    ".entry-content",
+    "main article",
+    "article",
+    "main",
+    "#primary",
+    "#content",
+    ".site-content"
+  ];
+  for (let i = 0; i < selectors.length; i += 1) {
+    const match = doc.querySelector(selectors[i]);
+    if (match && typeof match.innerHTML === "string" && match.innerHTML.trim() !== "") {
+      return match.innerHTML.trim();
+    }
+  }
+  const body = doc.querySelector("body");
+  if (body && typeof body.innerHTML === "string") {
+    return body.innerHTML.trim();
   }
   return "";
+}
+
+function sanitizeExtractedContent(html) {
+  if (typeof html !== "string" || html === "") {
+    return "";
+  }
+  const wrapper = parse(`<div id="wordpress-import-wrapper">${html}</div>`);
+  const root = wrapper.querySelector("#wordpress-import-wrapper");
+  if (!root) {
+    return "";
+  }
+  [ "script", "style", "noscript", "template" ].forEach((selector) => {
+    const nodes = root.querySelectorAll(selector);
+    nodes.forEach((node) => node.remove());
+  });
+  return root.innerHTML.trim();
+}
+
+async function buildWordPressPageContent(page, context) {
+  const settings = context && context.settings ? context.settings : {};
+  const renderedContent = renderedToHtml(page && page.content ? page.content : "", settings);
+  let html = renderedContent.html;
+  let source = renderedContent.source !== "" ? renderedContent.source : "empty";
+  const originalTokenStats = analyzeWordPressTokens(html);
+
+  if (valueToBoolean(settings.stripGutenbergComments, true)) {
+    html = stripGutenbergCommentTokens(html);
+  }
+  if (valueToBoolean(settings.stripShortcodes, false)) {
+    html = unwrapShortcodes(html);
+  }
+  if (html !== "") {
+    html = absolutizeRootUrls(html, context.base);
+  }
+
+  let finalTokenStats = analyzeWordPressTokens(html);
+  let fallbackUsed = false;
+  const fallbackToPageHtml = valueToBoolean(settings.fallbackToPageHtml, false);
+  const tokenThreshold = valueToNumber(settings.tokenThreshold, 8);
+  const shouldFallback =
+    fallbackToPageHtml &&
+    page &&
+    page.link &&
+    (html === "" || finalTokenStats.tokenCount >= tokenThreshold);
+
+  if (shouldFallback) {
+    const frontendHtml = await fetchText(page.link);
+    const extracted = sanitizeExtractedContent(extractLikelyPageContent(frontendHtml));
+    if (extracted !== "") {
+      html = absolutizeRootUrls(extracted, context.base);
+      source = "front-end-fallback";
+      fallbackUsed = true;
+      if (valueToBoolean(settings.stripGutenbergComments, true)) {
+        html = stripGutenbergCommentTokens(html);
+      }
+      if (valueToBoolean(settings.stripShortcodes, false)) {
+        html = unwrapShortcodes(html);
+      }
+      finalTokenStats = analyzeWordPressTokens(html);
+    }
+  }
+
+  if (html === "") {
+    html = "<p></p>";
+  }
+
+  return {
+    html: html,
+    source: source,
+    fallbackUsed: fallbackUsed,
+    tokenStats: finalTokenStats,
+    originalTokenStats: originalTokenStats
+  };
 }
 
 function normalizeNumeric(value, fallback = 0) {
@@ -388,8 +618,15 @@ async function wordpressPagesAdapter(context) {
   const wpToJosMap = {};
   const visited = {};
   const configuredParent = context.settings && context.settings.parentId ? context.settings.parentId : null;
+  const contentSummary = {
+    pagesWithTokens: 0,
+    pagesUsingFallback: 0,
+    tokenCount: 0,
+    gutenbergCommentCount: 0,
+    shortcodeCount: 0
+  };
 
-  function walkTree(parentWpId, josParentId, depth) {
+  async function walkTree(parentWpId, josParentId, depth) {
     const siblings = pagesByParent[parentWpId] ? pagesByParent[parentWpId] : [];
     for (let i = 0; i < siblings.length; i += 1) {
       const page = siblings[i];
@@ -411,8 +648,17 @@ async function wordpressPagesAdapter(context) {
       item.order = i;
       item.indent = depth;
       item.parent = josParentId !== null ? josParentId : configuredParent;
-      const pageContent = renderedToHtml(page.content);
-      item.contents = pageContent !== "" ? absolutizeRootUrls(pageContent, context.base) : "<p></p>";
+      const pageContent = await buildWordPressPageContent(page, context);
+      item.contents = pageContent.html;
+      if (pageContent.tokenStats.tokenCount > 0) {
+        contentSummary.pagesWithTokens += 1;
+      }
+      contentSummary.tokenCount += pageContent.tokenStats.tokenCount;
+      contentSummary.gutenbergCommentCount += pageContent.tokenStats.gutenbergCommentCount;
+      contentSummary.shortcodeCount += pageContent.tokenStats.shortcodeCount;
+      if (pageContent.fallbackUsed) {
+        contentSummary.pagesUsingFallback += 1;
+      }
       item.metadata = {
         sourceType: "wordpress-page",
         source: page.link ? page.link : null,
@@ -422,15 +668,25 @@ async function wordpressPagesAdapter(context) {
           menuOrder: normalizeNumeric(page.menu_order, 0),
           status: page.status ? page.status : "",
           date: page.date ? page.date : "",
-          modified: page.modified ? page.modified : ""
+          modified: page.modified ? page.modified : "",
+          content: {
+            source: pageContent.source,
+            fallbackUsed: pageContent.fallbackUsed,
+            tokenCount: pageContent.tokenStats.tokenCount,
+            gutenbergCommentCount: pageContent.tokenStats.gutenbergCommentCount,
+            shortcodeCount: pageContent.tokenStats.shortcodeCount,
+            originalTokenCount: pageContent.originalTokenStats.tokenCount,
+            originalGutenbergCommentCount: pageContent.originalTokenStats.gutenbergCommentCount,
+            originalShortcodeCount: pageContent.originalTokenStats.shortcodeCount
+          }
         }
       };
       items.push(item);
       wpToJosMap[wpId] = item;
-      walkTree(wpId, item.id, depth + 1);
+      await walkTree(wpId, item.id, depth + 1);
     }
   }
-  walkTree(0, null, 0);
+  await walkTree(0, null, 0);
   const unvisited = pages.filter((page) => !visited[normalizeNumeric(page.id, 0)]);
   const sortedUnvisited = sortPagesForTree(unvisited, menuPageOrderMap);
   if (sortedUnvisited.length > 0) {
@@ -441,7 +697,7 @@ async function wordpressPagesAdapter(context) {
       pagesByParent[0].push(page);
     });
     pagesByParent[0] = sortPagesForTree(pagesByParent[0], menuPageOrderMap);
-    walkTree(0, null, 0);
+    await walkTree(0, null, 0);
   }
 
   return {
@@ -469,6 +725,21 @@ async function wordpressPagesAdapter(context) {
           ? context.postsResponse.items.length
           : 0,
         imported: false
+      },
+      content: {
+        settings: {
+          contentMode: context.settings && context.settings.contentMode ? context.settings.contentMode : "rendered",
+          allowRawFallback: context.settings ? valueToBoolean(context.settings.allowRawFallback, false) : false,
+          stripGutenbergComments: context.settings ? valueToBoolean(context.settings.stripGutenbergComments, true) : true,
+          stripShortcodes: context.settings ? valueToBoolean(context.settings.stripShortcodes, false) : false,
+          fallbackToPageHtml: context.settings ? valueToBoolean(context.settings.fallbackToPageHtml, false) : false,
+          tokenThreshold: context.settings ? valueToNumber(context.settings.tokenThreshold, 8) : 8
+        },
+        pagesWithTokens: contentSummary.pagesWithTokens,
+        pagesUsingFallback: contentSummary.pagesUsingFallback,
+        tokenCount: contentSummary.tokenCount,
+        gutenbergCommentCount: contentSummary.gutenbergCommentCount,
+        shortcodeCount: contentSummary.shortcodeCount
       }
     }
   };

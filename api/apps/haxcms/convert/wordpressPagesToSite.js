@@ -1,6 +1,32 @@
 // @haxcms/wordpressPagesToSite
 import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
 import { buildWordPressAdapterContext, wordpressSiteAdapters } from "./lib/wordpressSiteHelpers.js";
+function toBoolean(value, fallback = false) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if ([ "true", "1", "yes", "on" ].includes(normalized)) {
+      return true;
+    }
+    if ([ "false", "0", "no", "off" ].includes(normalized)) {
+      return false;
+    }
+  }
+  return fallback;
+}
+
+function toNumber(value, fallback = 0) {
+  const normalized = parseInt(value);
+  if (Number.isNaN(normalized)) {
+    return fallback;
+  }
+  return normalized;
+}
 
 export default async function handler(req, res) {
   let body = {};
@@ -21,6 +47,11 @@ export default async function handler(req, res) {
   if (body.parentId && body.parentId !== "null") {
     parentId = body.parentId;
   }
+  const contentMode = body.contentMode
+    ? body.contentMode
+    : body.renderMode
+      ? body.renderMode
+      : "rendered";
 
   const adapterName = body.adapter ? body.adapter : "pages";
   if (!wordpressSiteAdapters[adapterName]) {
@@ -32,7 +63,13 @@ export default async function handler(req, res) {
   }
 
   const context = await buildWordPressAdapterContext(body.repoUrl, {
-    parentId: parentId
+    parentId: parentId,
+    contentMode: contentMode,
+    allowRawFallback: toBoolean(body.allowRawFallback, false),
+    stripGutenbergComments: toBoolean(body.stripGutenbergComments, true),
+    stripShortcodes: toBoolean(body.stripShortcodes, false),
+    fallbackToPageHtml: toBoolean(body.fallbackToPageHtml, false),
+    tokenThreshold: toNumber(body.tokenThreshold, 8)
   });
   if (context.error) {
     return invalidRequest(res, context.error, 422);

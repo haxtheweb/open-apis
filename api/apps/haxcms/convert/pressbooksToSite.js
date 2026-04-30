@@ -6,6 +6,14 @@ import busboy from "busboy";
 import concat from "concat-stream";
 import { parse } from "node-html-parser";
 import { discoverPressbooksBase, fetchJSON, absolutizeRootUrls } from "./lib/wordpressSiteHelpers.js";
+const SUPPORTED_SITE_LICENSES = [
+  "by-nc-nd",
+  "by-nc-sa",
+  "by-nc",
+  "by-nd",
+  "by-sa",
+  "by"
+];
 
 export default async function handler(req, res) {
   const contentType =
@@ -54,14 +62,18 @@ export default async function handler(req, res) {
     );
   }
 
+  const responseData = {
+    items: importedData.items,
+    filename: importedData.filename,
+    files: importedData.files
+  };
+  if (importedData.site && typeof importedData.site === "object") {
+    responseData.site = importedData.site;
+  }
   return stdResponse(
     res,
     {
-      data: {
-        items: importedData.items,
-        filename: importedData.filename,
-        files: importedData.files
-      },
+      data: responseData,
       status: 200
     },
     { cache: 180, type: "application/json" }
@@ -140,6 +152,7 @@ async function importPressbooksSite(base, parentId = null) {
     return null;
   }
   const siteMetadata = await fetchJSON(`${base}/wp-json/pressbooks/v2/metadata`);
+  const normalizedSiteMetadata = getPressbooksSiteMetadata(siteMetadata);
   const topLevelOrder = {
     value: 0
   };
@@ -171,11 +184,15 @@ async function importPressbooksSite(base, parentId = null) {
   );
   items.push(...backMatterItems);
 
-  return {
+  const importedSite = {
     items,
     files: {},
     filename: getSiteFilename(siteMetadata, base)
   };
+  if (Object.keys(normalizedSiteMetadata).length > 0) {
+    importedSite.site = normalizedSiteMetadata;
+  }
+  return importedSite;
 }
 
 async function buildTopLevelSectionItems(base, sectionItems, endpointType, parentId, orderRef) {
@@ -349,6 +366,101 @@ function getSiteFilename(siteMetadata, base) {
     return cleanTitle(parts[parts.length - 1]);
   }
   return "pressbooks-import";
+}
+
+function normalizeSiteLicenseValue(rawValue) {
+  if (!rawValue || typeof rawValue !== "string") {
+    return null;
+  }
+  const value = rawValue
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+  if (value === "") {
+    return null;
+  }
+  if (SUPPORTED_SITE_LICENSES.includes(value)) {
+    return value;
+  }
+  for (const code of SUPPORTED_SITE_LICENSES) {
+    if (
+      value.indexOf(`/licenses/${code}`) !== -1 ||
+      value.indexOf(`cc ${code}`) !== -1 ||
+      value.indexOf(`cc-${code}`) !== -1 ||
+      value.indexOf(`cc:${code}`) !== -1
+    ) {
+      return code;
+    }
+  }
+  const compactValue = value.replace(/[^a-z]/g, "");
+  const hasNonCommercial = compactValue.indexOf("noncommercial") !== -1;
+  const hasNoDerivatives = compactValue.indexOf("noderivatives") !== -1;
+  const hasShareAlike = compactValue.indexOf("sharealike") !== -1;
+  const hasAttribution =
+    compactValue.indexOf("attribution") !== -1 ||
+    value.indexOf("/licenses/by/") !== -1 ||
+    value.indexOf("cc by") !== -1;
+  if (hasNonCommercial && hasNoDerivatives) {
+    return "by-nc-nd";
+  }
+  if (hasNonCommercial && hasShareAlike) {
+    return "by-nc-sa";
+  }
+  if (hasNonCommercial) {
+    return "by-nc";
+  }
+  if (hasNoDerivatives) {
+    return "by-nd";
+  }
+  if (hasShareAlike) {
+    return "by-sa";
+  }
+  if (hasAttribution) {
+    return "by";
+  }
+  return null;
+}
+
+function collectLicenseCandidatesFromMetadata(metadata, candidates = []) {
+  if (!metadata || typeof metadata !== "object") {
+    return candidates;
+  }
+  if (Array.isArray(metadata)) {
+    for (const item of metadata) {
+      collectLicenseCandidatesFromMetadata(item, candidates);
+    }
+    return candidates;
+  }
+  for (const key of Object.keys(metadata)) {
+    const value = metadata[key];
+    const normalizedKey = key.toLowerCase();
+    if (typeof value === "string") {
+      if (
+        normalizedKey.indexOf("license") !== -1 ||
+        normalizedKey.indexOf("rights") !== -1 ||
+        normalizedKey.indexOf("copyright") !== -1
+      ) {
+        candidates.push(value);
+      }
+    }
+    else if (value && typeof value === "object") {
+      collectLicenseCandidatesFromMetadata(value, candidates);
+    }
+  }
+  return candidates;
+}
+
+function getPressbooksSiteMetadata(siteMetadata) {
+  const metadata = {};
+  const licenseCandidates = collectLicenseCandidatesFromMetadata(siteMetadata);
+  for (const candidate of licenseCandidates) {
+    const normalizedLicense = normalizeSiteLicenseValue(candidate);
+    if (normalizedLicense) {
+      metadata.license = normalizedLicense;
+      break;
+    }
+  }
+  return metadata;
 }
 
 
