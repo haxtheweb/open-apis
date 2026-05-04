@@ -1,10 +1,10 @@
 // docxToHtml
-import { stdResponse } from "../../../../utilities/requestHelpers.js";
+import { stdResponse } from "../../../_utilities/requestHelpers.js";
 import df from 'mammoth';
 const { convertToHtml } = df;
 import { parse } from 'node-html-parser';
-import { validURL } from '../../../../utilities/apps/haxcms/lib/JOSHelpers.js';
-import { stripMSWord } from '../../../../utilities/htmlScrubbers.js';
+import { validURL } from '../../../_utilities/apps/haxcms/lib/JOSHelpers.js';
+import { stripMSWord } from '../../../_utilities/htmlScrubbers.js';
 
 // Helper function to parse multipart form data manually
 function parseMultipartData(buffer, boundary) {

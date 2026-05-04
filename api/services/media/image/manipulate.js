@@ -1,4 +1,4 @@
-import { stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
+import { stdResponse, invalidRequest } from "../../../_utilities/requestHelpers.js";
 
 import pkg from 'sharp';
 const sharp = pkg;

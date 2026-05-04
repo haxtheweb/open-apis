@@ -1,5 +1,5 @@
-import { stdPostBody, stdResponse } from "../../../utilities/requestHelpers.js";
-import { courseStatsFromOutline, siteHTMLContent, resolveSiteData } from "../../../utilities/apps/haxcms/lib/JOSHelpers.js";
+import { stdPostBody, stdResponse } from "../../_utilities/requestHelpers.js";
+import { courseStatsFromOutline, siteHTMLContent, resolveSiteData } from "../../_utilities/apps/haxcms/lib/JOSHelpers.js";
 import rs from "text-readability";
 
 /**

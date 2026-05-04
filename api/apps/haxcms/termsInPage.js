@@ -1,4 +1,4 @@
-import { stdPostBody, stdResponse } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse } from "../../_utilities/requestHelpers.js";
 import { siteGlossary } from "./siteGlossary.js";
 
 

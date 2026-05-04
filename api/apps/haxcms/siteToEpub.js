@@ -1,5 +1,5 @@
-import { stdPostBody, stdResponse } from "../../../utilities/requestHelpers.js";
-import { resolveSiteData } from "../../../utilities/apps/haxcms/lib/JOSHelpers.js";
+import { stdPostBody, stdResponse } from "../../_utilities/requestHelpers.js";
+import { resolveSiteData } from "../../_utilities/apps/haxcms/lib/JOSHelpers.js";
 import { parse } from 'node-html-parser';
 
 import * as fs from 'node:fs';

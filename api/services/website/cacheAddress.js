@@ -1,6 +1,6 @@
 // cacheAddress.js
 // cache any address for the given period of time
-import { stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdResponse, invalidRequest } from "../../_utilities/requestHelpers.js";
 
 export default async function handler(req, res) {
   let cache = 1800; // 30 minutes default

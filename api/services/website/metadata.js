@@ -1,7 +1,7 @@
 // metadata.js
 // this is an example to fork from that uses common, simple conventions
 // for getting data, validating data, and responding in a consistent way.
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../_utilities/requestHelpers.js";
 import { parse } from 'node-html-parser';
 
 export default async function handler(req, res) {

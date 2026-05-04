@@ -1,7 +1,7 @@
 // pdfToHtml
-import { stdResponse } from "../../../../utilities/requestHelpers.js";
-import { convertPdfBufferToHtml } from "../../../../utilities/apps/haxcms/lib/pdfToSemanticHtml.js";
-import { stripMSWord } from "../../../../utilities/htmlScrubbers.js";
+import { stdResponse } from "../../../_utilities/requestHelpers.js";
+import { convertPdfBufferToHtml } from "../../../_utilities/apps/haxcms/lib/pdfToSemanticHtml.js";
+import { stripMSWord } from "../../../_utilities/htmlScrubbers.js";
 
 export default async function handler(req, res) {
   let html = "";

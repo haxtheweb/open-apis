@@ -1,5 +1,5 @@
-import { stdPostBody, stdResponse } from "../../../utilities/requestHelpers.js";
-import { JSONOutlineSchema } from "../../../utilities/apps/haxcms/lib/JSONOutlineSchema.js";
+import { stdPostBody, stdResponse } from "../../_utilities/requestHelpers.js";
+import { JSONOutlineSchema } from "../../_utilities/apps/haxcms/lib/JSONOutlineSchema.js";
 import { parse } from 'node-html-parser';
 
 // site object to validate response from passed in url
