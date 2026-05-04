@@ -3,7 +3,7 @@ import { stdResponse } from "../../_utilities/requestHelpers.js";
 import { JSONOutlineSchemaItem } from "../../_utilities/apps/haxcms/lib/JSONOutlineSchemaItem.js";
 import { cleanTitle, validURL } from "../../_utilities/apps/haxcms/lib/JOSHelpers.js";
 import { parse } from "node-html-parser";
-import { PPTXInHTMLOut } from "pptx-in-html-out";
+import { PPTXInHTMLOut } from '../../_utilities/vendor/pptx-in-html-out/src/index.js'
 import { stripMSWord } from "../../_utilities/htmlScrubbers.js";
 import { sanitizePptxMediaForOCR } from "../../_utilities/pptxHelpers.js";
 
