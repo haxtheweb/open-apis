@@ -1,65 +1,55 @@
 // @haxcms/docxToSite
-import { stdResponse } from "../../utilities/requestHelpers.js";
-import { JSONOutlineSchemaItem } from "./lib/JSONOutlineSchemaItem.js";
-import { cleanTitle, validURL } from "./lib/JOSHelpers.js";
+import { stdResponse } from "../../../utilities/requestHelpers.js";
+import { JSONOutlineSchemaItem } from "../../../utilities/apps/haxcms/lib/JSONOutlineSchemaItem.js";
+import { cleanTitle, validURL } from "../../../utilities/apps/haxcms/lib/JOSHelpers.js";
 import df from 'mammoth';
 const { convertToHtml } = df;
-import busboy from 'busboy';
-import concat from "concat-stream";
 import { parse } from 'node-html-parser';
 export default async function handler(req, res) {
-  var html = '';
-  var buffer = {
-    filename: null,
-    data: null,
-  };
-  var type = "";
-  var method = 'site';
-  var parentId = null;
+  let html = '';
+  let filename = null;
   // this allows mapping document styles to html tags
-  var mammothOptions = {
+  const mammothOptions = {
     styleMap: [
         "u => em", // convert underline to emphasis tag
         "strike => del" // convert strike to del tag instead of s
     ]
   };
-  const bb = busboy({ headers: req.headers });
-  bb.on('field', async (name, fieldValue, info) => {
-    if (name === 'method') {
-      method = fieldValue;
+  try {
+    const rawBody = await getRequestBodyBuffer(req);
+    if (!rawBody || rawBody.length === 0) {
+      throw new Error('No request body received');
     }
-    else if (name === 'type') {
-      type = fieldValue;
+    const contentType = req.headers['content-type'] || '';
+    const boundary = getMultipartBoundary(contentType);
+    if (!boundary) {
+      throw new Error('No boundary found in Content-Type header');
     }
-    else if (name === 'parentId' && fieldValue !== 'null') {
-      parentId = fieldValue;
+    const formData = parseMultipartData(rawBody, boundary);
+    if (!formData || !formData.file) {
+      throw new Error('No file found in multipart data');
     }
-  });
-  bb.on('file', async (name, file, info) => {
-    const { filename, encoding, mimeType } = info;
-    if(filename.length > 0 && ['application/octet-stream', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(mimeType)) {
-      file.pipe(concat((fileBuffer) => {
-        buffer.filename = filename;
-        buffer.data = fileBuffer;
-      }));
+    filename = formData.file.filename;
+    if (!hasValidDocxInput(formData.file.filename, formData.file.mimeType)) {
+      throw new Error(`Invalid file type. Expected .docx or .doc, got: ${formData.file.filename}`);
     }
-  });
-  // file closed / finished
-  bb.on('close', async () => {
-    if (buffer.data) {
-      try {
-        html = await convertToHtml({buffer: buffer.data}, mammothOptions)
-        .then((result) => {
-          return result.value; // The generated HTML
-        });
-      }
-      catch(e) {
-        // put in the output
-        html = e;
-      }
+    const type = formData.fields.type || '';
+    const method = formData.fields.method || 'site';
+    const parentIdField = formData.fields.parentId;
+    const parentId = parentIdField && parentIdField !== 'null' ? parentIdField : null;
+    try {
+      html = await convertToHtml({buffer: formData.file.data}, mammothOptions)
+      .then((result) => {
+        return result.value; // The generated HTML
+      });
+    }
+    catch (e) {
+      html = '';
+      throw new Error(`Error converting DOCX: ${e.message}`);
     }
     const doc = parse(`<div id="docx-import-wrapper">${html}</div>`);
     let items = [];
+    const titleValue = getFileTitle(formData.file.filename);
     // find all the h1s, then h2, h3, h4
     //https://vanillajstoolkit.com/helpers/nextuntil/
     // while we keep selecting next siblings, and its not another at our level
@@ -74,7 +64,7 @@ export default async function handler(req, res) {
         let h1Order = 0;
         // if we have no headings, then we need to treat as a single page
         if (h1s.length === 0) {
-          items.push(importSinglePage(buffer.filename.replace('.docx',''), processSinglePageContent(doc.querySelector('#docx-import-wrapper')), parentId));
+          items.push(importSinglePage(titleValue, processSinglePageContent(doc.querySelector('#docx-import-wrapper')), parentId));
         }
         else {
           for await (const h1 of h1s) {
@@ -134,7 +124,7 @@ export default async function handler(req, res) {
         order = 0;
         // if we have no headings, then we need to treat as a single page
         if (els.length === 0) {
-          items.push(importSinglePage(buffer.filename.replace('.docx',''), processSinglePageContent(doc.querySelector('#docx-import-wrapper')), parentId));
+          items.push(importSinglePage(titleValue, processSinglePageContent(doc.querySelector('#docx-import-wrapper')), parentId));
         }
         else {
           for await (const h1 of els) {
@@ -158,17 +148,121 @@ export default async function handler(req, res) {
       break;
       // h1 -> heading, h2 -> subheading, h3 -> sub-subheading, h4 -> sub-sub-subheading (single page import)
       case 'page':
-        items.push(importSinglePage(buffer.filename.replace('.docx',''), processSinglePageContent(doc.querySelector('#docx-import-wrapper')), parentId));
+      default:
+        items.push(importSinglePage(titleValue, processSinglePageContent(doc.querySelector('#docx-import-wrapper')), parentId));
       break;
     }
-    res = stdResponse(res,
+    res = stdResponse(res, {
+      items: items,
+      filename: formData.file.filename,
+    });
+  }
+  catch (error) {
+    console.error('docxToSite: Error processing file:', error.message);
+    res = stdResponse(
+      res,
       {
-        items: items,
-        filename: buffer.filename,
-      }
+        error: `Error processing DOCX import: ${error.message}`,
+        items: [],
+        filename: filename,
+      },
+      { status: 400 },
     );
+  }
+}
+
+async function getRequestBodyBuffer(req) {
+  const body = req.rawBody || req.body;
+  if (Buffer.isBuffer(body)) {
+    return body;
+  }
+  if (body instanceof Uint8Array) {
+    return Buffer.from(body);
+  }
+  if (typeof body === 'string') {
+    return Buffer.from(body);
+  }
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    req.on('end', () => {
+      resolve(Buffer.concat(chunks));
+    });
+    req.on('error', (err) => {
+      reject(err);
+    });
   });
-  req.pipe(bb);
+}
+
+function getMultipartBoundary(contentType) {
+  const match = String(contentType).match(/boundary=([^;]+)/i);
+  if (!match || !match[1]) {
+    return null;
+  }
+  return match[1].trim();
+}
+
+function parseMultipartData(buffer, boundary) {
+  const data = buffer.toString('binary');
+  const parts = data.split('--' + boundary);
+  const result = {
+    fields: {},
+    file: null,
+  };
+  for (const part of parts) {
+    if (!part || part === '--' || part === '--\r\n' || part === '\r\n') {
+      continue;
+    }
+    const headerEndIndex = part.indexOf('\r\n\r\n');
+    if (headerEndIndex === -1) {
+      continue;
+    }
+    const headerText = part.substring(0, headerEndIndex);
+    if (!headerText.includes('Content-Disposition: form-data')) {
+      continue;
+    }
+    const nameMatch = headerText.match(/name=\"([^\"]+)\"/);
+    if (!nameMatch || !nameMatch[1]) {
+      continue;
+    }
+    let partData = part.substring(headerEndIndex + 4);
+    partData = partData.replace(/\r\n$/, '');
+    const filenameMatch = headerText.match(/filename=\"([^\"]+)\"/);
+    if (filenameMatch && filenameMatch[1]) {
+      const mimeTypeMatch = headerText.match(/Content-Type:\s*([^\r\n]+)/i);
+      result.file = {
+        fieldName: nameMatch[1],
+        filename: filenameMatch[1],
+        mimeType: mimeTypeMatch && mimeTypeMatch[1] ? mimeTypeMatch[1].trim() : null,
+        data: Buffer.from(partData, 'binary'),
+      };
+    }
+    else {
+      result.fields[nameMatch[1]] = partData;
+    }
+  }
+  return result;
+}
+
+function hasValidDocxInput(filename, mimeType) {
+  if (!filename || typeof filename !== 'string') {
+    return false;
+  }
+  const validMimeTypes = [
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+    'application/octet-stream',
+  ];
+  return /\.(docx|doc)$/i.test(filename) && (!mimeType || validMimeTypes.includes(mimeType));
+}
+
+function getFileTitle(filename) {
+  if (!filename || typeof filename !== 'string') {
+    return 'new page';
+  }
+  return filename.replace(/\.(docx|doc)$/i, '');
 }
 
 function processSinglePageContent(wrapperEl) {

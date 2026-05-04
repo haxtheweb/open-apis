@@ -1,6 +1,7 @@
 // pdfToHtml
-import { stdResponse } from "../../../utilities/requestHelpers.js";
-import { convertPdfBufferToHtml } from "../../../apps/haxcms/lib/pdfToSemanticHtml.js";
+import { stdResponse } from "../../../../utilities/requestHelpers.js";
+import { convertPdfBufferToHtml } from "../../../../utilities/apps/haxcms/lib/pdfToSemanticHtml.js";
+import { stripMSWord } from "../../../../utilities/htmlScrubbers.js";
 
 export default async function handler(req, res) {
   let html = "";
@@ -25,6 +26,7 @@ export default async function handler(req, res) {
     }
     try {
       html = await convertPdfBufferToHtml(formData.file.data);
+      html = stripMSWord(html);
     }
     catch (e) {
       html = "";

@@ -1,6 +1,6 @@
 // @haxcms/drupalBookToSite
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
-import { importDrupalBookSite } from "./lib/drupalSiteHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
+import { importDrupalBookSite } from "../../../../utilities/apps/haxcms/convert/lib/drupalSiteHelpers.js";
 
 function normalizeBoolean(value) {
   return value === true || value === "true" || value === 1 || value === "1";

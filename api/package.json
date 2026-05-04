@@ -23,6 +23,7 @@
     "node-html-parser": "6.1.10",
     "unpdf": "1.6.2",
     "html-to-docx": "1.8.0",
+    "pptx-in-html-out": "^0.0.2",
     "text-readability": "1.0.5",
     "pretty": "2.0.0",
     "xlsx": "0.18.5"

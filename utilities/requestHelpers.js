@@ -1,14 +1,24 @@
 // standard helper for post body processing
 export function stdPostBody(req) {
-  try {
-    return JSON.parse(req.body);
+  if (!req || typeof req.body === 'undefined' || req.body === null) {
+    return {};
   }
-  catch(e) {
-    console.log(req.body);
-    console.log(e);
-    // empty body response
-    return null
+  if (typeof req.body === 'object') {
+    return req.body;
   }
+  if (typeof req.body === 'string') {
+    const body = req.body.trim();
+    if (body === '') {
+      return {};
+    }
+    try {
+      return JSON.parse(body);
+    }
+    catch (e) {
+      return null;
+    }
+  }
+  return null;
 }
 
 // failed request for standardized response

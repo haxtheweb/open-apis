@@ -1,5 +1,5 @@
-import { stdPostBody, stdResponse } from "../../utilities/requestHelpers.js";
-import { courseStatsFromOutline } from "./lib/JOSHelpers.js";
+import { stdPostBody, stdResponse } from "../../../utilities/requestHelpers.js";
+import { courseStatsFromOutline } from "../../../utilities/apps/haxcms/lib/JOSHelpers.js";
 
 // given a site, and current page, obtain stats that are possibly relevant
 // to smart blocks like lesson-intro, course-intro and others as long
@@ -14,6 +14,9 @@ export default async function handler(req, res) {
   }
   else {
     body = stdPostBody(req);
+  }
+  if (!body) {
+    body = {};
   }
   if (body.site && body.type) {
     // get URL bits for validating and forming calls

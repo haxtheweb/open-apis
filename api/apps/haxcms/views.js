@@ -1,5 +1,5 @@
-import { stdPostBody, stdResponse, invalidRequest } from "../../utilities/requestHelpers.js";
-import { resolveSiteData } from "./lib/JOSHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { resolveSiteData } from "../../../utilities/apps/haxcms/lib/JOSHelpers.js";
 import { parse } from 'node-html-parser';
 
 // vercel to slice our data into views that we can remix at will

@@ -1,7 +1,7 @@
 // duckduckgo.js
 // this is an example to fork from that uses common, simple conventions
 // for getting data, validating data, and responding in a consistent way.
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
 import * as child_process from "child_process";
 import * as util from "node:util";
 import * as fs from 'node:fs';

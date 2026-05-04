@@ -1,4 +1,4 @@
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
 
 import { encode } from "base64-arraybuffer";
 

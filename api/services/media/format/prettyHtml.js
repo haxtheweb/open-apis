@@ -1,4 +1,4 @@
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
 
 import * as prettyJS from 'pretty';
 const pretty = prettyJS.default;

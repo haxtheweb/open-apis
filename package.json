@@ -27,6 +27,7 @@
     "html-pdf": "3.0.1",
     "unpdf": "1.6.2",
     "html-to-docx": "1.8.0",
+    "pptx-in-html-out": "^0.0.2",
     "js-yaml": "^4.1.0",
     "jsdom": "24.0.0",
     "mammoth": "1.6.0",

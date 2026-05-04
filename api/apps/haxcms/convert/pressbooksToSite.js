@@ -1,11 +1,11 @@
 // @haxcms/pressbooksToSite
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
-import { JSONOutlineSchemaItem } from "../lib/JSONOutlineSchemaItem.js";
-import { cleanTitle, validURL } from "../lib/JOSHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
+import { JSONOutlineSchemaItem } from "../../../../utilities/apps/haxcms/lib/JSONOutlineSchemaItem.js";
+import { cleanTitle, validURL } from "../../../../utilities/apps/haxcms/lib/JOSHelpers.js";
 import busboy from "busboy";
 import concat from "concat-stream";
 import { parse } from "node-html-parser";
-import { discoverPressbooksBase, fetchJSON, absolutizeRootUrls } from "./lib/wordpressSiteHelpers.js";
+import { discoverPressbooksBase, fetchJSON, absolutizeRootUrls } from "../../../../utilities/apps/haxcms/convert/lib/wordpressSiteHelpers.js";
 const SUPPORTED_SITE_LICENSES = [
   "by-nc-nd",
   "by-nc-sa",

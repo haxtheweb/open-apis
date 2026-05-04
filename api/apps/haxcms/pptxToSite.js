@@ -1,9 +1,11 @@
-// @haxcms/pdfToSite
+// @haxcms/pptxToSite
 import { stdResponse } from "../../../utilities/requestHelpers.js";
 import { JSONOutlineSchemaItem } from "../../../utilities/apps/haxcms/lib/JSONOutlineSchemaItem.js";
 import { cleanTitle, validURL } from "../../../utilities/apps/haxcms/lib/JOSHelpers.js";
-import { convertPdfBufferToHtml } from "../../../utilities/apps/haxcms/lib/pdfToSemanticHtml.js";
 import { parse } from "node-html-parser";
+import { PPTXInHTMLOut } from "pptx-in-html-out";
+import { stripMSWord } from "../../../utilities/htmlScrubbers.js";
+import { sanitizePptxMediaForOCR } from "../../../utilities/pptxHelpers.js";
 
 export default async function handler(req, res) {
   let html = "";
@@ -23,8 +25,8 @@ export default async function handler(req, res) {
       throw new Error("No file found in multipart data");
     }
     filename = formData.file.filename;
-    if (!hasValidPdfInput(formData.file.filename, formData.file.mimeType)) {
-      throw new Error(`Invalid file type. Expected .pdf, got: ${formData.file.filename}`);
+    if (!hasValidPptxInput(formData.file.filename, formData.file.mimeType)) {
+      throw new Error(`Invalid file type. Expected .pptx, got: ${formData.file.filename}`);
     }
 
     const type = formData.fields.type || "";
@@ -33,14 +35,17 @@ export default async function handler(req, res) {
     const parentId = parentIdField && parentIdField !== "null" ? parentIdField : null;
 
     try {
-      html = await convertPdfBufferToHtml(formData.file.data);
+      const sanitizedPptxBuffer = await sanitizePptxMediaForOCR(formData.file.data);
+      const converter = new PPTXInHTMLOut(sanitizedPptxBuffer);
+      html = await converter.toHTML();
+      html = stripMSWord(html);
     }
     catch (e) {
       html = "";
-      throw new Error(`Error converting PDF: ${e.message}`);
+      throw new Error(`Error converting PPTX: ${e.message}`);
     }
 
-    const doc = parse(`<div id=\"pdf-import-wrapper\">${html}</div>`);
+    const doc = parse(`<div id=\"pptx-import-wrapper\">${html}</div>`);
     const items = [];
     const titleValue = getFileTitle(formData.file.filename);
     let order;
@@ -49,7 +54,7 @@ export default async function handler(req, res) {
         const h1s = doc.querySelectorAll("h1");
         let h1Order = 0;
         if (h1s.length === 0) {
-          items.push(importSinglePage(titleValue, processSinglePageContent(doc.querySelector("#pdf-import-wrapper")), parentId));
+          items.push(importSinglePage(titleValue, processSinglePageContent(doc.querySelector("#pptx-import-wrapper")), parentId));
         }
         else {
           for await (const h1 of h1s) {
@@ -102,7 +107,7 @@ export default async function handler(req, res) {
         const els = doc.querySelectorAll("h1");
         order = 0;
         if (els.length === 0) {
-          items.push(importSinglePage(titleValue, processSinglePageContent(doc.querySelector("#pdf-import-wrapper")), parentId));
+          items.push(importSinglePage(titleValue, processSinglePageContent(doc.querySelector("#pptx-import-wrapper")), parentId));
         }
         else {
           for await (const h1 of els) {
@@ -125,7 +130,7 @@ export default async function handler(req, res) {
       break;
       case "page":
       default:
-        items.push(importSinglePage(titleValue, processSinglePageContent(doc.querySelector("#pdf-import-wrapper")), parentId));
+        items.push(importSinglePage(titleValue, processSinglePageContent(doc.querySelector("#pptx-import-wrapper")), parentId));
       break;
     }
 
@@ -135,11 +140,11 @@ export default async function handler(req, res) {
     });
   }
   catch (error) {
-    console.error("pdfToSite: Error processing file:", error.message);
+    console.error("pptxToSite: Error processing file:", error.message);
     res = stdResponse(
       res,
       {
-        error: `Error processing PDF import: ${error.message}`,
+        error: `Error processing PPTX import: ${error.message}`,
         items: [],
         filename: filename,
       },
@@ -223,19 +228,23 @@ function parseMultipartData(buffer, boundary) {
   return result;
 }
 
-function hasValidPdfInput(filename, mimeType) {
+function hasValidPptxInput(filename, mimeType) {
   if (!filename || typeof filename !== "string") {
     return false;
   }
-  const validMimeTypes = ["application/pdf", "application/x-pdf", "application/octet-stream"];
-  return /\.pdf$/i.test(filename) && (!mimeType || validMimeTypes.includes(mimeType));
+  const validMimeTypes = [
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.ms-powerpoint",
+    "application/octet-stream",
+  ];
+  return /\.pptx$/i.test(filename) && (!mimeType || validMimeTypes.includes(mimeType));
 }
 
 function getFileTitle(filename) {
   if (!filename || typeof filename !== "string") {
     return "new page";
   }
-  return filename.replace(/\.pdf$/i, "");
+  return filename.replace(/\.pptx$/i, "");
 }
 
 function processSinglePageContent(wrapperEl) {

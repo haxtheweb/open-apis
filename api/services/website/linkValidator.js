@@ -1,6 +1,6 @@
 // linkValidator.js
 // validate links or return what codes there are with a timeout interval
-import { stdPostBody, stdResponse, invalidRequest } from "../../utilities/requestHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
 
 export default async function handler(req, res) {
   let responses = {};

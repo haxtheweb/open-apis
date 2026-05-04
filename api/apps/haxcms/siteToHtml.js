@@ -1,5 +1,5 @@
-import { stdPostBody, stdResponse } from "../../utilities/requestHelpers.js";
-import { siteHTMLContent } from "./lib/JOSHelpers.js";
+import { stdPostBody, stdResponse } from "../../../utilities/requestHelpers.js";
+import { siteHTMLContent } from "../../../utilities/apps/haxcms/lib/JOSHelpers.js";
 
 // site object to validate response from passed in url
 export default async function handler(req, res) {

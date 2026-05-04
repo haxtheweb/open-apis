@@ -1,8 +1,8 @@
 // @haxcms/ploneToSite
-import { stdPostBody, stdResponse, invalidRequest } from "../../../utilities/requestHelpers.js";
-import { JSONOutlineSchemaItem } from "../lib/JSONOutlineSchemaItem.js";
-import { cleanTitle } from "../lib/JOSHelpers.js";
-import { absolutizeRootUrls, fetchJSONWithMeta } from "./lib/wordpressSiteHelpers.js";
+import { stdPostBody, stdResponse, invalidRequest } from "../../../../utilities/requestHelpers.js";
+import { JSONOutlineSchemaItem } from "../../../../utilities/apps/haxcms/lib/JSONOutlineSchemaItem.js";
+import { cleanTitle } from "../../../../utilities/apps/haxcms/lib/JOSHelpers.js";
+import { absolutizeRootUrls, fetchJSONWithMeta } from "../../../../utilities/apps/haxcms/convert/lib/wordpressSiteHelpers.js";
 
 const DEFAULT_PAGE_TYPES = [
   "Document",
