@@ -1,4 +1,4 @@
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getResolvedPDFJS } from "unpdf";
 
 const DEFAULT_FONT_SIZE = 12;
 const HEADING_TOLERANCE = 0.75;
@@ -9,6 +9,8 @@ const MAX_HEADING_LENGTH = 140;
 export async function convertPdfBufferToHtml(buffer) {
   let loadingTask = null;
   try {
+    const pdfjs = await getResolvedPDFJS();
+    const getDocument = pdfjs.getDocument;
     loadingTask = getDocument({
       data: new Uint8Array(buffer),
       disableWorker: true,
