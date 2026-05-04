@@ -43,6 +43,9 @@
     "url": "0.11.0",
     "xlsx": "0.18.5"
   },
+  "overrides": {
+    "sharp": "0.32.6"
+  },
   "resolutions": {
     "sharp": "0.32.6"
   },
