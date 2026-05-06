@@ -1,3 +1,5 @@
+import { parse } from 'node-html-parser'
+
 // Shared HTML scrubbers used by import/conversion services
 // Keep in sync with the standard HAX stripMSWord behavior.
 export function stripMSWord(input) {
@@ -139,4 +141,60 @@ export function stripMSWord(input) {
   }
   output = output.trim()
   return output
+}
+
+export function extractBodyHtml(input) {
+  if (typeof input !== 'string') {
+    return ''
+  }
+  const parsed = parse(input)
+  const body = parsed.querySelector('body')
+  if (body && typeof body.innerHTML === 'string' && body.innerHTML.trim() !== '') {
+    return body.innerHTML
+  }
+  return input
+}
+
+export function sanitizeUntrustedHtml(input) {
+  if (typeof input !== 'string') {
+    return ''
+  }
+  const wrapper = parse(`<div id="hax-sanitize-wrapper">${input}</div>`)
+  const root = wrapper.querySelector('#hax-sanitize-wrapper')
+  if (!root) {
+    return ''
+  }
+  const blockedTags = [
+    'script',
+    'style',
+    'noscript',
+    'object',
+    'embed',
+    'form',
+    'link',
+    'meta',
+    'base',
+  ]
+  blockedTags.forEach((selector) => {
+    const nodes = root.querySelectorAll(selector)
+    nodes.forEach((node) => node.remove())
+  })
+  const nodes = root.querySelectorAll('*')
+  nodes.forEach((node) => {
+    const attrs = Object.keys(node.attributes || {})
+    attrs.forEach((attr) => {
+      const attrLower = String(attr).toLowerCase()
+      const value = String(node.getAttribute(attr) || '')
+      if (attrLower.startsWith('on') || attrLower === 'style') {
+        node.removeAttribute(attr)
+      }
+      if (
+        ['href', 'src', 'xlink:href', 'action', 'formaction'].includes(attrLower) &&
+        value.trim().toLowerCase().startsWith('javascript:')
+      ) {
+        node.removeAttribute(attr)
+      }
+    })
+  })
+  return root.innerHTML
 }
