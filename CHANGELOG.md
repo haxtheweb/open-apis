@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [26.0.5](https://github.com/haxtheweb/open-apis/compare/v26.0.4...v26.0.5) (2026-05-14)
+
 ## [26.0.4](https://github.com/haxtheweb/open-apis/compare/v26.0.3...v26.0.4) (2026-05-14)
 
 ## [26.0.3](https://github.com/haxtheweb/open-apis/compare/v26.0.2...v26.0.3) (2026-05-12)
