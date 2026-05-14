@@ -2,7 +2,6 @@
 import { stdResponse } from '../../../_utilities/requestHelpers.js'
 import { PPTXInHTMLOut } from '../../../_utilities/vendor/pptx-in-html-out/src/index.js'
 import { stripMSWord } from '../../../_utilities/htmlScrubbers.js'
-import { sanitizePptxMediaForOCR } from '../../../_utilities/pptxHelpers.js'
 
 export default async function handler(req, res) {
   let html = ''
@@ -26,9 +25,12 @@ export default async function handler(req, res) {
       throw new Error(`Invalid file type. Expected .pptx, got: ${formData.file.filename}`)
     }
     try {
-      const sanitizedPptxBuffer = await sanitizePptxMediaForOCR(formData.file.data)
-      const converter = new PPTXInHTMLOut(sanitizedPptxBuffer)
-      html = await converter.toHTML()
+      const converter = new PPTXInHTMLOut(formData.file.data)
+      html = await converter.toHTML({
+        includeStyles: true,
+        inlineImages: true,
+        fullDocument: true,
+      })
       html = stripMSWord(html)
     }
     catch (e) {

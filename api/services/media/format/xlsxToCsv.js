@@ -1,7 +1,7 @@
 // xlsxToCsv.js
 // Convert Excel files (.xls, .xlsx) to CSV format
-import { stdResponse, invalidRequest } from "../../../_utilities/requestHelpers.js";
-import * as XLSX from 'xlsx';
+import { stdResponse } from "../../../_utilities/requestHelpers.js";
+import ExcelJS from 'exceljs';
 
 // Helper function to parse multipart form data manually
 function parseMultipartData(buffer, boundary) {
@@ -35,13 +35,71 @@ function parseMultipartData(buffer, boundary) {
   }
   return null;
 }
+function escapeCsvValue(value) {
+  const stringValue = value === null || value === undefined ? '' : String(value);
+  const requiresQuotes =
+    stringValue.includes(',') ||
+    stringValue.includes('"') ||
+    stringValue.includes('\n') ||
+    stringValue.includes('\r');
+
+  if (requiresQuotes) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+
+  return stringValue;
+}
+
+function worksheetToCsv(worksheet, includeHeaders) {
+  const rows = [];
+  let maxColumns = 0;
+
+  worksheet.eachRow({ includeEmpty: false }, (row) => {
+    if (row.cellCount > maxColumns) {
+      maxColumns = row.cellCount;
+    }
+  });
+
+  if (maxColumns === 0) {
+    return '';
+  }
+
+  for (let rowNumber = 1; rowNumber <= worksheet.rowCount; rowNumber++) {
+    const row = worksheet.getRow(rowNumber);
+    const serializedRow = [];
+    let hasValues = false;
+
+    for (let columnNumber = 1; columnNumber <= maxColumns; columnNumber++) {
+      const cellText = row.getCell(columnNumber).text;
+      const normalizedValue =
+        cellText === null || cellText === undefined ? '' : String(cellText);
+
+      if (normalizedValue.trim() !== '') {
+        hasValues = true;
+      }
+
+      serializedRow.push(escapeCsvValue(normalizedValue));
+    }
+
+    if (hasValues) {
+      rows.push(serializedRow.join(','));
+    }
+  }
+
+  if (!includeHeaders && rows.length > 0) {
+    rows.shift();
+  }
+
+  return rows.join('\n');
+}
 
 export default async function handler(req, res) {
   let responseHandled = false;
   
   // Accept additional parameters for sheet selection and formatting
-  const sheetName = req.query?.sheet || null;
-  const includeHeaders = req.query?.headers !== 'false';
+  const query = req.query || {};
+  const sheetName = query.sheet || null;
+  const includeHeaders = query.headers !== 'false';
   
   
   // Read raw request body
@@ -79,40 +137,40 @@ export default async function handler(req, res) {
       if (!hasValidExtension) {
         throw new Error(`Invalid file type. Expected .xls or .xlsx, got: ${fileInfo.filename}`);
       }
+
+      if (fileInfo.filename.toLowerCase().endsWith('.xls')) {
+        throw new Error('Legacy .xls files are not supported by this converter. Please save as .xlsx and retry');
+      }
       
       // Parse Excel file
-      const workbook = XLSX.read(fileInfo.data, { type: 'buffer' });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(fileInfo.data);
+      const sheetNames = workbook.worksheets.map((sheet) => sheet.name);
       
       // Determine which sheet to use
       let selectedSheetName = sheetName;
-      if (!selectedSheetName || !workbook.SheetNames.includes(selectedSheetName)) {
-        selectedSheetName = workbook.SheetNames[0];
+      if (!selectedSheetName || !sheetNames.includes(selectedSheetName)) {
+        selectedSheetName = sheetNames[0];
       }
       
       if (!selectedSheetName) {
         throw new Error('No sheets found in Excel file');
       }
       
-      const worksheet = workbook.Sheets[selectedSheetName];
+      const worksheet = workbook.getWorksheet(selectedSheetName);
+      if (!worksheet) {
+        throw new Error(`Unable to access worksheet: ${selectedSheetName}`);
+      }
       
       // Convert to CSV
-      const csvOptions = {
-        header: includeHeaders ? 1 : 0,
-        blankrows: false,
-        strip: true,
-      };
-      
-      const csvData = XLSX.utils.sheet_to_csv(worksheet, csvOptions)
-        .split('\n')
-        .filter(line => line.trim().length > 0)
-        .join('\n');
+      const csvData = worksheetToCsv(worksheet, includeHeaders);
       
       
       res = stdResponse(res, {
         contents: csvData,
         filename: fileInfo.filename,
         originalFilename: fileInfo.filename,
-        sheetNames: workbook.SheetNames,
+        sheetNames,
         selectedSheet: selectedSheetName,
         format: 'csv'
       });

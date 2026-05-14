@@ -4,7 +4,7 @@
 `POST /api/services/media/format/xlsxToCsv`
 
 ## Description
-Converts Excel files (.xls, .xlsx) to CSV format for use with HAX Merlin File Wand and table creation workflows.
+Converts Excel files (.xlsx) to CSV format for use with HAX Merlin File Wand and table creation workflows.
 
 ## Request Format
 - **Method**: POST
@@ -16,7 +16,6 @@ Converts Excel files (.xls, .xlsx) to CSV format for use with HAX Merlin File Wa
 - `headers` (boolean): Whether to include headers. Default is `true`. Set to `false` to exclude headers.
 
 ### Supported File Types
-- `.xls` (Excel 97-2003)
 - `.xlsx` (Excel 2007+)
 - Various MIME types:
   - `application/vnd.ms-excel`
@@ -125,6 +124,6 @@ The endpoint handles various error conditions:
 
 ## Dependencies
 
-- `xlsx` (v0.18.5): Excel parsing and CSV conversion
+- `exceljs` (v4.4.0): Excel parsing and CSV conversion
 - `busboy` (v1.6.0): Multipart form parsing
 - `concat-stream` (v2.0.0): Stream buffer handling

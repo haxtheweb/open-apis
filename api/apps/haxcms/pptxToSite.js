@@ -5,7 +5,10 @@ import { cleanTitle, validURL } from "../../_utilities/apps/haxcms/lib/JOSHelper
 import { parse } from "node-html-parser";
 import { PPTXInHTMLOut } from '../../_utilities/vendor/pptx-in-html-out/src/index.js'
 import { stripMSWord } from "../../_utilities/htmlScrubbers.js";
-import { sanitizePptxMediaForOCR } from "../../_utilities/pptxHelpers.js";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 export default async function handler(req, res) {
   let html = "";
@@ -33,12 +36,20 @@ export default async function handler(req, res) {
     const method = formData.fields.method || "site";
     const parentIdField = formData.fields.parentId;
     const parentId = parentIdField && parentIdField !== "null" ? parentIdField : null;
+    let files = {};
 
     try {
-      const sanitizedPptxBuffer = await sanitizePptxMediaForOCR(formData.file.data);
-      const converter = new PPTXInHTMLOut(sanitizedPptxBuffer);
-      html = await converter.toHTML();
+      const converter = new PPTXInHTMLOut(formData.file.data);
+      html = await converter.toHTML({
+        includeStyles: false,
+        inlineImages: false,
+        fullDocument: false,
+      });
       html = stripMSWord(html);
+      files = await stagePptxFilesForImport(
+        converter.getExtractedFiles(),
+        formData.file.filename,
+      );
     }
     catch (e) {
       html = "";
@@ -137,6 +148,7 @@ export default async function handler(req, res) {
     res = stdResponse(res, {
       items: items,
       filename: formData.file.filename,
+      files: files,
     });
   }
   catch (error) {
@@ -226,6 +238,151 @@ function parseMultipartData(buffer, boundary) {
     }
   }
   return result;
+}
+
+async function stagePptxFilesForImport(extractedFiles, sourceFilename) {
+  if (!extractedFiles || typeof extractedFiles !== "object") {
+    return {};
+  }
+  const fileReferences = Object.keys(extractedFiles);
+  if (fileReferences.length === 0) {
+    return {};
+  }
+  const importsRoot = await resolveHaxcmsImportRoot();
+  if (!importsRoot) {
+    return {};
+  }
+  const importId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+  const sourceSlug = cleanTitle(getFileTitle(sourceFilename || "pptx-import"));
+  const importFolder = path.join(
+    importsRoot,
+    `${sourceSlug || "pptx-import"}-${importId}`,
+  );
+  await fs.mkdir(importFolder, { recursive: true });
+
+  const files = {};
+  for (const fileReference of fileReferences) {
+    const normalizedReference = normalizePptxFileReference(fileReference);
+    if (!normalizedReference) {
+      continue;
+    }
+    const fileEntry = extractedFiles[fileReference];
+    let buffer = null;
+    if (Buffer.isBuffer(fileEntry)) {
+      buffer = fileEntry;
+    }
+    else if (
+      fileEntry &&
+      typeof fileEntry === "object" &&
+      Buffer.isBuffer(fileEntry.buffer)
+    ) {
+      buffer = fileEntry.buffer;
+    }
+    if (!buffer) {
+      continue;
+    }
+    const targetPath = path.join(importFolder, normalizedReference);
+    if (!isPathInsideRoot(targetPath, importFolder)) {
+      continue;
+    }
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(targetPath, buffer);
+    files[`files/${normalizedReference}`] = targetPath;
+  }
+  return files;
+}
+
+function normalizePptxFileReference(fileReference) {
+  if (!fileReference || typeof fileReference !== "string") {
+    return null;
+  }
+  let normalized = fileReference.trim().replace(/\\/g, "/");
+  normalized = normalized.replace(/^files\//, "");
+  if (
+    normalized === "" ||
+    normalized.indexOf("\0") !== -1 ||
+    normalized.startsWith("/") ||
+    normalized.includes("..")
+  ) {
+    return null;
+  }
+  const parts = normalized.split("/");
+  for (const part of parts) {
+    if (part === "" || part === "." || part === "..") {
+      return null;
+    }
+  }
+  return normalized;
+}
+
+async function resolveHaxcmsImportRoot() {
+  const candidates = [];
+  if (process.env.HAXCMS_CONFIG_DIRECTORY) {
+    candidates.push(process.env.HAXCMS_CONFIG_DIRECTORY);
+  }
+  if (process.env.HAXCMS_CONFIG_DIR) {
+    candidates.push(process.env.HAXCMS_CONFIG_DIR);
+  }
+  const projectConfigDir = await findProjectConfigDirectory(process.cwd());
+  if (projectConfigDir) {
+    candidates.push(projectConfigDir);
+  }
+  const homeDir = os.homedir();
+  if (homeDir) {
+    candidates.push(path.join(homeDir, ".haxcmsconfig"));
+  }
+  candidates.push(path.join(os.tmpdir(), ".haxcmsconfig"));
+
+  const seen = new Set();
+  for (const candidate of candidates) {
+    if (!candidate || seen.has(candidate)) {
+      continue;
+    }
+    seen.add(candidate);
+    const markerFile = path.join(candidate, ".isHAXcmsConfig");
+    if (!(await fileExists(markerFile))) {
+      continue;
+    }
+    const importsRoot = path.join(candidate, "tmp", "imports");
+    await fs.mkdir(importsRoot, { recursive: true });
+    return importsRoot;
+  }
+  return null;
+}
+
+async function findProjectConfigDirectory(startPath) {
+  let current = path.resolve(startPath || process.cwd());
+  while (true) {
+    const candidate = path.join(current, "_config");
+    if (await fileExists(path.join(candidate, ".isHAXcmsConfig"))) {
+      return candidate;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return null;
+}
+
+async function fileExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  }
+  catch (e) {
+    return false;
+  }
+}
+
+function isPathInsideRoot(targetPath, rootPath) {
+  const resolvedTarget = path.resolve(targetPath);
+  const resolvedRoot = path.resolve(rootPath);
+  if (resolvedTarget === resolvedRoot) {
+    return true;
+  }
+  return resolvedTarget.startsWith(`${resolvedRoot}${path.sep}`);
 }
 
 function hasValidPptxInput(filename, mimeType) {

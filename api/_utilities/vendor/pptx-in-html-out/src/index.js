@@ -1,19 +1,25 @@
 import JSZip from 'jszip';
 import { parseStringPromise } from 'xml2js';
-import sharp from 'sharp';
-import { createWorker } from 'tesseract.js';
+import path from 'node:path';
+
+const TITLE_PLACEHOLDER_TYPES = ['title', 'ctrTitle'];
+const IMAGE_MIME_BY_EXTENSION = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+};
 
 export class PPTXInHTMLOut {
   constructor(pptxBuffer) {
     this.pptxBuffer = pptxBuffer;
     this.zip = null;
     this.debug = false;
-    this.ocrWorker = null;
-    this.slideLayouts = new Map();
-    this.slideMasters = new Map();
     this.slides = [];
-    this.images = new Map();
-    this.relationships = new Map();
+    this.extractedFiles = {};
+    this.imageReferenceMap = new Map();
   }
 
   setDebug(enabled) {
@@ -25,6 +31,135 @@ export class PPTXInHTMLOut {
     if (this.debug) {
       console.log(...args);
     }
+  }
+
+  asArray(value) {
+    if (!value) {
+      return [];
+    }
+    if (Array.isArray(value)) {
+      return value;
+    }
+    return [value];
+  }
+
+  getSlideNumber(slideFile) {
+    const match = String(slideFile).match(/slide(\d+)\.xml/i);
+    if (!match || !match[1]) {
+      return 0;
+    }
+    return parseInt(match[1], 10);
+  }
+
+  escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  extractTextValue(value) {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      let tmp = '';
+      for (const item of value) {
+        tmp += this.extractTextValue(item);
+      }
+      return tmp;
+    }
+    if (value && typeof value === 'object') {
+      if (typeof value._ === 'string') {
+        return value._;
+      }
+      if (typeof value['a:t'] !== 'undefined') {
+        return this.extractTextValue(value['a:t']);
+      }
+    }
+    return '';
+  }
+
+  getParagraphText(paragraph) {
+    const chunks = [];
+    const runs = this.asArray(paragraph ? paragraph['a:r'] : null);
+    for (const run of runs) {
+      const text = this.extractTextValue(run ? run['a:t'] : '');
+      if (text) {
+        chunks.push(text);
+      }
+    }
+    const fields = this.asArray(paragraph ? paragraph['a:fld'] : null);
+    for (const field of fields) {
+      const text = this.extractTextValue(field ? field['a:t'] : '');
+      if (text) {
+        chunks.push(text);
+      }
+    }
+    if (chunks.length === 0) {
+      const directText = this.extractTextValue(paragraph ? paragraph['a:t'] : '');
+      if (directText) {
+        chunks.push(directText);
+      }
+    }
+    return chunks.join('').trim();
+  }
+
+  getShapeText(shape) {
+    const txBody = this.asArray(shape ? shape['p:txBody'] : null)[0];
+    if (!txBody) {
+      return '';
+    }
+    const paragraphs = this.asArray(txBody['a:p']);
+    const lines = [];
+    for (const paragraph of paragraphs) {
+      const line = this.getParagraphText(paragraph);
+      if (line) {
+        lines.push(line);
+      }
+    }
+    return lines.join('\n').trim();
+  }
+
+  isTitleShape(shape) {
+    const nvSpPr = this.asArray(shape ? shape['p:nvSpPr'] : null)[0];
+    if (!nvSpPr) {
+      return false;
+    }
+    const nvPr = this.asArray(nvSpPr['p:nvPr'])[0];
+    if (!nvPr) {
+      return false;
+    }
+    const placeholder = this.asArray(nvPr['p:ph'])[0];
+    if (!placeholder || !placeholder.$) {
+      return false;
+    }
+    const type = typeof placeholder.$.type === 'string' ? placeholder.$.type : '';
+    if (TITLE_PLACEHOLDER_TYPES.includes(type)) {
+      return true;
+    }
+    if (type === '' && (placeholder.$.idx === '0' || placeholder.$.idx === 0)) {
+      return true;
+    }
+    return false;
+  }
+
+  getImageMimeType(extension) {
+    if (IMAGE_MIME_BY_EXTENSION[extension]) {
+      return IMAGE_MIME_BY_EXTENSION[extension];
+    }
+    return 'application/octet-stream';
+  }
+
+  getImageDataUri(fileReference) {
+    const imageFile = this.extractedFiles[fileReference];
+    if (!imageFile || !Buffer.isBuffer(imageFile.buffer)) {
+      return null;
+    }
+    const mimeType = imageFile.mimeType || 'application/octet-stream';
+    return `data:${mimeType};base64,${imageFile.buffer.toString('base64')}`;
   }
 
   async initialize() {
@@ -78,54 +213,10 @@ export class PPTXInHTMLOut {
 
   async parse() {
     try {
-      await this.parseRelationships();
-      await this.parseSlideLayouts();
-      await this.parseSlideMasters();
       await this.parseSlides();
-      await this.extractImages();
     } catch (error) {
       this.log('Error during parse:', error);
       throw error;
-    }
-  }
-
-  async parseXml(content) {
-    const parserOptions = {
-      explicitArray: false,
-      explicitRoot: true,
-      normalizeTags: true,
-      tagNameProcessors: [(name) => name.replace(/^[a-z]+:/, '')],
-      attrNameProcessors: [(name) => name.replace(/^[a-z]+:/, '')],
-      attrValueProcessors: [(value) => value],
-      xmlns: true
-    };
-    return parseStringPromise(content, parserOptions);
-  }
-
-  async parseRelationships() {
-    const relsFiles = Object.keys(this.zip.files).filter(name => name.endsWith('.rels'));
-    for (const relsFile of relsFiles) {
-      try {
-        const content = await this.zip.file(relsFile).async('text');
-        const result = await this.parseXml(content);
-        
-        if (result?.Relationships?.Relationship) {
-          const relationships = Array.isArray(result.Relationships.Relationship) 
-            ? result.Relationships.Relationship 
-            : [result.Relationships.Relationship];
-            
-          const basePath = relsFile.split('/_rels/')[0];
-          this.relationships.set(basePath, relationships.reduce((acc, rel) => {
-            acc[rel.Id] = {
-              type: rel.Type,
-              target: rel.Target
-            };
-            return acc;
-          }, {}));
-        }
-      } catch (error) {
-        this.log(`Warning: Could not parse relationships in ${relsFile}:`, error);
-      }
     }
   }
 
@@ -135,17 +226,14 @@ export class PPTXInHTMLOut {
       .sort();
 
     this.slides = [];
-    
+
     for (const slideFile of slideFiles) {
       try {
         const slideContent = await this.zip.file(slideFile).async('string');
         const slideXml = await parseStringPromise(slideContent);
-        
         if (this.debug) {
           console.log('Parsing slide:', slideFile);
-          console.log('Full result:', JSON.stringify(slideXml));
         }
-        
         this.slides.push({
           file: slideFile,
           content: slideXml
@@ -154,19 +242,12 @@ export class PPTXInHTMLOut {
         console.error(`Error parsing slide ${slideFile}:`, error);
       }
     }
-    
-    if (this.debug) {
-      console.log('Successfully parsed slides:', this.slides.length);
-      if (this.slides.length > 0) {
-        console.log('First slide content:', JSON.stringify(this.slides[0].content));
-      }
-    }
-    
+
     return this.slides;
   }
 
-  async convertSlideToHTML(slide) {
-    if (!slide?.content) {
+  async convertSlideToHTML(slide, options = {}) {
+    if (!slide || !slide.content) {
       console.error('Invalid slide content');
       return '';
     }
@@ -176,270 +257,172 @@ export class PPTXInHTMLOut {
       console.error('No p:sld found in slide content');
       return '';
     }
-
-    // Get the spTree from the correct path
-    const spTree = sld['p:cSld']?.[0]?.['p:spTree']?.[0];
-    
+    const cSld = this.asArray(sld['p:cSld'])[0];
+    const spTree = cSld ? this.asArray(cSld['p:spTree'])[0] : null;
     if (!spTree) {
-      console.error('No spTree found in slide, full content:', JSON.stringify(sld));
       return '';
     }
 
-    let html = '<div class="slide"><div class="slide-content">';
+    const textBlocks = [];
+    const shapes = this.asArray(spTree['p:sp']);
+    for (const shape of shapes) {
+      const text = this.getShapeText(shape);
+      if (!text) {
+        continue;
+      }
+      textBlocks.push({
+        text,
+        isTitle: this.isTitleShape(shape),
+      });
+    }
 
-    // Process shapes (text content)
-    if (spTree['p:sp']) {
-      for (const shape of spTree['p:sp']) {
-        const txBody = shape['p:txBody']?.[0];
-        if (txBody) {
-          html += '<div class="shape">';
-          
-          // Process paragraphs
-          const paragraphs = txBody['a:p'] || [];
-          for (const paragraph of paragraphs) {
-            html += '<p>';
-            
-            // Process text runs
-            if (paragraph['a:r']) {
-              for (const run of paragraph['a:r']) {
-                const text = run['a:t']?.[0] || '';
-                html += `<span>${text}</span>`;
-              }
-            }
-            
-            html += '</p>';
-          }
-          
-          html += '</div>';
-        }
+    let titleIndex = -1;
+    for (let i = 0; i < textBlocks.length; i += 1) {
+      if (textBlocks[i].isTitle) {
+        titleIndex = i;
+        break;
+      }
+    }
+    if (titleIndex === -1 && textBlocks.length > 0) {
+      titleIndex = 0;
+    }
+    const slideNumber = this.getSlideNumber(slide.file);
+    const title = titleIndex > -1
+      ? textBlocks[titleIndex].text.replace(/\s+/g, ' ').trim()
+      : `Slide ${slideNumber || 1}`;
+
+    let html = `<div class="slide" data-slide-number="${slideNumber || 1}">`;
+    html += `<h1>${this.escapeHtml(title)}</h1>`;
+
+    for (let i = 0; i < textBlocks.length; i += 1) {
+      if (i === titleIndex) {
+        continue;
+      }
+      const lines = textBlocks[i].text
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
+      for (const line of lines) {
+        html += `<p>${this.escapeHtml(line)}</p>`;
       }
     }
 
-    // Process pictures
-    if (spTree['p:pic']) {
-      for (const pic of spTree['p:pic']) {
-        const blipFill = pic['p:blipFill']?.[0];
-        const blip = blipFill?.['a:blip']?.[0];
-        const rId = blip?.$?.['r:embed'];
-        
-        if (rId) {
-          const imageData = await this.getImageData(slide.file, rId);
-          if (imageData) {
-            const processedImage = await this.processImage(imageData);
-            if (processedImage?.text) {
-              html += `<div class="picture">
-                <p class="ocr-text">${processedImage.text}</p>
-              </div>`;
-            }
-          }
+    const pictures = this.asArray(spTree['p:pic']);
+    for (let i = 0; i < pictures.length; i += 1) {
+      const rId = this.getPictureEmbedRelationshipId(pictures[i]);
+      if (!rId) {
+        continue;
+      }
+      const imageReference = await this.getOrCreateImageReference(
+        slide.file,
+        rId,
+        i + 1,
+      );
+      if (!imageReference) {
+        continue;
+      }
+      let imageSource = imageReference;
+      if (options.inlineImages) {
+        const dataUri = this.getImageDataUri(imageReference);
+        if (dataUri) {
+          imageSource = dataUri;
         }
       }
+      html += `<img src="${imageSource}" loading="lazy" decoding="async" alt="" />`;
     }
 
-    html += '</div></div>';
+    html += '</div>';
     return html;
   }
 
-  async convertShapeToHTML(shape, options) {
-    const nvSpPr = shape?.nvsppr || shape?.['nvSpPr'];
-    const txBody = shape?.txbody || shape?.['txBody'];
-    const spPr = shape?.sppr || shape?.['spPr'];
-
-    if (!txBody) {
+  getPictureEmbedRelationshipId(pic) {
+    const blipFill = this.asArray(pic ? pic['p:blipFill'] : null)[0];
+    const blip = blipFill ? this.asArray(blipFill['a:blip'])[0] : null;
+    if (!blip || !blip.$ || typeof blip.$['r:embed'] !== 'string') {
       return '';
     }
-
-    let shapeHtml = '<div class="shape">';
-
-    if (txBody.p) {
-      const paragraphs = Array.isArray(txBody.p) ? txBody.p : [txBody.p];
-      for (const p of paragraphs) {
-        shapeHtml += '<p>';
-        if (p.r) {
-          const runs = Array.isArray(p.r) ? p.r : [p.r];
-          for (const r of runs) {
-            const text = r?.t?._ || '';
-            shapeHtml += `<span>${text}</span>`;
-          }
-        }
-        shapeHtml += '</p>';
-      }
-    }
-
-    shapeHtml += '</div>';
-    return shapeHtml;
+    return blip.$['r:embed'];
   }
 
-  async convertPictureToHTML(pic, options) {
-    const nvPicPr = pic?.nvpicpr || pic?.['nvPicPr'];
-    const blipFill = pic?.blipfill || pic?.['blipFill'];
-    const spPr = pic?.sppr || pic?.['spPr'];
-
-    if (!blipFill?.blip?.$.embed) {
-      return '';
+  resolveRelationshipTarget(slideFile, target) {
+    if (!target || typeof target !== 'string') {
+      return null;
     }
+    const normalizedTarget = target.replace(/\\/g, '/').replace(/^\/+/, '');
+    const slideDir = path.posix.dirname(slideFile);
+    return path.posix.normalize(path.posix.join(slideDir, normalizedTarget));
+  }
 
-    const rId = blipFill.blip.$.embed;
-    const imageData = await this.getImageData(pic.file, rId);
-    if (!imageData) {
-      return '';
+  async getOrCreateImageReference(slideFile, rId, imageOrder) {
+    const rels = await this.getSlideRels(slideFile);
+    if (!rels || !rels[rId] || !rels[rId].Target) {
+      return null;
     }
-
-    return `<div class="picture">
-        <img src="${imageData}" alt="Slide Image"/>
-    </div>`;
+    const imagePath = this.resolveRelationshipTarget(slideFile, rels[rId].Target);
+    if (!imagePath || !imagePath.startsWith('ppt/media/')) {
+      return null;
+    }
+    if (this.imageReferenceMap.has(imagePath)) {
+      return this.imageReferenceMap.get(imagePath);
+    }
+    const imageExtension = path.posix.extname(imagePath).toLowerCase();
+    if (!IMAGE_MIME_BY_EXTENSION[imageExtension]) {
+      return null;
+    }
+    const imageFile = this.zip.file(imagePath);
+    if (!imageFile) {
+      return null;
+    }
+    const imageBuffer = await imageFile.async('nodebuffer');
+    const slideNumber = this.getSlideNumber(slideFile) || 1;
+    const fileReference = `files/pptx-media/slide-${slideNumber}-image-${imageOrder}${imageExtension}`;
+    this.extractedFiles[fileReference] = {
+      buffer: imageBuffer,
+      mimeType: this.getImageMimeType(imageExtension),
+      originalPath: imagePath,
+    };
+    this.imageReferenceMap.set(imagePath, fileReference);
+    return fileReference;
   }
 
   async getSlideRels(slideFile) {
     try {
-      // Get the relationships file for this slide
-      const slideNumber = slideFile.match(/slide(\d+)\.xml/)[1];
-      const relsFile = this.zip.file(`ppt/slides/_rels/slide${slideNumber}.xml.rels`);
-      
-      if (!relsFile) {
-        console.error('No relationships file found for slide:', slideFile);
-        return null;
+      const slideNumber = this.getSlideNumber(slideFile);
+      if (!slideNumber) {
+        return {};
       }
-      
+      const relsFile = this.zip.file(`ppt/slides/_rels/slide${slideNumber}.xml.rels`);
+      if (!relsFile) {
+        return {};
+      }
       const relsContent = await relsFile.async('string');
       const relsXml = await parseStringPromise(relsContent);
-      
-      // Parse relationships
+      const relationshipNodes = relsXml && relsXml.Relationships
+        ? relsXml.Relationships.Relationship
+        : [];
+      const relationships = this.asArray(relationshipNodes);
       const rels = {};
-      const relationships = relsXml?.['Relationships']?.['Relationship'] || [];
-      
       for (const rel of relationships) {
-        const id = rel.$?.Id;
-        const target = rel.$?.Target;
-        if (id && target) {
-          rels[id] = {
-            Id: id,
-            Target: target
-          };
+        if (!rel || !rel.$ || !rel.$.Id || !rel.$.Target) {
+          continue;
         }
+        rels[rel.$.Id] = {
+          Id: rel.$.Id,
+          Target: rel.$.Target,
+        };
       }
-      
       return rels;
     } catch (error) {
       console.error('Error getting slide relationships:', error);
-      return null;
+      return {};
     }
   }
 
-  async getImageData(slideFile, rId) {
-    try {
-      const rels = await this.getSlideRels(slideFile);
-      if (!rels || !rels[rId]) {
-        console.error('No relationship found for rId:', rId);
-        return null;
-      }
-
-      const imagePath = rels[rId].Target;
-      if (!imagePath) {
-        console.error('No target path found for relationship:', rId);
-        return null;
-      }
-
-      // Get full path to image file
-      const fullPath = `ppt/media/${imagePath.split('/').pop()}`;
-      const imageFile = this.zip.file(fullPath);
-      
-      if (!imageFile) {
-        console.error('Image file not found:', fullPath);
-        return null;
-      }
-
-      // Get image data as buffer
-      const imageBuffer = await imageFile.async('nodebuffer');
-      return imageBuffer;
-    } catch (error) {
-      console.error('Error getting image data:', error);
-      return null;
-    }
+  getExtractedFiles() {
+    return this.extractedFiles;
   }
 
-  async processImage(imageBuffer) {
-    let worker = null;
-    try {
-      worker = await createWorker();
-      const { data: { text } } = await worker.recognize(imageBuffer);
-      return { text };
-    } catch (error) {
-      console.error('Error processing image with OCR:', error);
-      return null;
-    } finally {
-      if (worker) {
-        await worker.terminate();
-      }
-    }
-  }
-
-  async convertShapeOrPicture(element) {
-    if (element.pic) {
-      // It's a picture, handle embedded image
-      const rId = element.pic.blipFill?.blip?.$?.['r:embed'];
-      if (rId) {
-        const slideRels = await this.getSlideRels(element.file);
-        const imagePath = slideRels?.[rId]?.Target;
-        
-        if (imagePath) {
-          const fullImagePath = `ppt/media/${imagePath.split('/').pop()}`;
-          const imageData = await this.zip.file(fullImagePath)?.async('nodebuffer');
-          
-          if (imageData) {
-            const processedImage = await this.processImage(imageData);
-            if (processedImage) {
-              return `<div class="picture">
-                  <p class="ocr-text">${processedImage.text}</p>
-              </div>`;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  async parseSlideLayouts() {
-    const layoutFiles = Object.keys(this.zip.files).filter(name => 
-      name.includes('ppt/slideLayouts/slideLayout'));
-    
-    for (const layoutFile of layoutFiles) {
-      const content = await this.zip.file(layoutFile).async('text');
-      const result = await this.parseXml(content);
-      this.slideLayouts.set(layoutFile, result);
-    }
-  }
-
-  async parseSlideMasters() {
-    const masterFiles = Object.keys(this.zip.files).filter(name => 
-      name.includes('ppt/slideMasters/slideMaster'));
-    
-    for (const masterFile of masterFiles) {
-      const content = await this.zip.file(masterFile).async('text');
-      const result = await this.parseXml(content);
-      this.slideMasters.set(masterFile, result);
-    }
-  }
-
-  async extractImages() {
-    const mediaFiles = Object.keys(this.zip.files).filter(name => 
-      name.startsWith('ppt/media/'));
-    
-    for (const mediaFile of mediaFiles) {
-      const data = await this.zip.file(mediaFile).async('nodebuffer');
-      const image = await sharp(data);
-      const metadata = await image.metadata();
-      const base64 = data.toString('base64');
-      
-      this.images.set(mediaFile, {
-        data: base64,
-        metadata,
-        type: metadata.format
-      });
-    }
-  }
-
-  async toHTML(options = { includeStyles: true }) {
+  async toHTML(options = { includeStyles: true, inlineImages: false, fullDocument: true }) {
     try {
       await this.initialize();
       const slides = await this.parseSlides();
@@ -451,11 +434,19 @@ export class PPTXInHTMLOut {
     }
   }
 
-  async generateHTML(slides, options = { includeStyles: true }) {
+  async generateHTML(slides, options = { includeStyles: true, inlineImages: false, fullDocument: true }) {
+    const renderOptions = {
+      includeStyles: typeof options.includeStyles === 'boolean' ? options.includeStyles : true,
+      inlineImages: typeof options.inlineImages === 'boolean' ? options.inlineImages : false,
+      fullDocument: typeof options.fullDocument === 'boolean' ? options.fullDocument : true,
+    };
     let slidesHTML = '';
     for (const slide of slides) {
-      const slideHTML = await this.convertSlideToHTML(slide);
+      const slideHTML = await this.convertSlideToHTML(slide, renderOptions);
       slidesHTML += slideHTML;
+    }
+    if (!renderOptions.fullDocument) {
+      return slidesHTML;
     }
 
     return `<!DOCTYPE html>
@@ -463,7 +454,7 @@ export class PPTXInHTMLOut {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  ${options.includeStyles ? this.generateStyles() : ''}
+  ${renderOptions.includeStyles ? this.generateStyles() : ''}
 </head>
 <body>${slidesHTML}</body>
 </html>`;
@@ -473,31 +464,23 @@ export class PPTXInHTMLOut {
     return `
       <style>
         .slide {
-          position: relative;
-          width: 100%;
-          height: 0;
-          padding-bottom: 56.25%;
           margin-bottom: 20px;
+          padding: 16px;
+          border: 1px solid #dddddd;
+          border-radius: 8px;
           background: white;
         }
-        .slide-content {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
+        .slide h1 {
+          margin: 0 0 16px;
         }
-        .shape {
-          position: absolute;
-          box-sizing: border-box;
+        .slide p {
+          margin: 0 0 10px;
         }
-        .text {
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-        }
-        .image {
+        .slide img {
+          display: block;
           max-width: 100%;
           height: auto;
+          margin: 8px 0;
         }
       </style>
     `;

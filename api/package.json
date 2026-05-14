@@ -25,6 +25,6 @@
     "pptx-in-html-out": "0.0.2",
     "text-readability": "1.1.1",
     "pretty": "2.0.0",
-    "xlsx": "0.18.5"
+    "exceljs": "4.4.0"
   }
 }
