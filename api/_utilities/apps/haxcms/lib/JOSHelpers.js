@@ -337,6 +337,34 @@ export async function courseStatsFromOutline(siteLocation, siteData = null, ance
           }
         }*/
       break;
+      // find videos missing transcript support and return where to fix them
+      case 'videoTranscriptData':
+        data.videoTranscriptData = [];
+        const allVideos = doc.querySelectorAll('video-player,iframe[src*="youtube.com"],iframe[src*="youtube-nocookie.com"],iframe[src*="vimeo.com"],video[src],a11y-media-player');
+        for (let el of allVideos) {
+          if (!videoHasTranscript(el)) {
+            let parent = el.parentNode;
+            while (parent && !parent.getAttribute('data-jos-item-id')) {
+              parent = parent.parentNode;
+            }
+            const itemId = parent ? parent.getAttribute('data-jos-item-id') : null;
+            const itemData = itemId ? site.getItemById(itemId) : null;
+            let pageURL = null;
+            if (itemData && itemData.location) {
+              pageURL = resolveLocalFile(siteLocation, itemData.location).toString();
+            }
+            data.videoTranscriptData.push({
+              source: el.getAttribute('source') || el.getAttribute('src') || null,
+              itemId: itemId,
+              title: itemData ? itemData.title : null,
+              slug: itemData ? itemData.slug : null,
+              location: itemData ? itemData.location : null,
+              url: pageURL,
+              status: 'warning',
+            });
+          }
+        }
+      break;
     }
   }
   return data;
@@ -427,6 +455,25 @@ export function mediaStatus(item) {
     break;
   }
   return 'info';
+}
+
+// basic transcript / captions support check for common video elements
+export function videoHasTranscript(el) {
+  if (!el) {
+    return false;
+  }
+  const transcriptAttributes = ['track', 'tracks', 'transcript', 'transcript-src', 'captions', 'caption', 'cc'];
+  for (let attr of transcriptAttributes) {
+    const value = el.getAttribute(attr);
+    if (value && value !== 'false' && value !== '0') {
+      return true;
+    }
+  }
+  const tracks = el.querySelectorAll('track[src],track[kind="captions"],track[kind="subtitles"],track[kind="transcript"]');
+  if (tracks.length > 0) {
+    return true;
+  }
+  return false;
 }
 
 // get HTML for a single page + the full object
