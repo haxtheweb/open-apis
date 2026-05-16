@@ -6,6 +6,7 @@ import { parse } from 'node-html-parser';
 const WORDSPERMIN = 225;
 const VIDEO_ELEMENTS_SELECTOR = 'video-player,iframe[src*="youtube.com"],iframe[src*="youtube-nocookie.com"],iframe[src*="vimeo.com"],video[src],video source[src],a11y-media-player';
 const VIDEO_TRANSCRIPT_ATTRIBUTES = ['track', 'tracks', 'transcript', 'transcript-src', 'captions', 'caption', 'cc'];
+const VIDEO_TRACK_ELEMENTS_SELECTOR = 'track[src],track[kind="captions"],track[kind="subtitles"],track[kind="transcript"]';
 // this either pulls the site from the location directly or from the data passed in
 // so that other things can work with the outline as loaded
 export async function resolveSiteData(siteLocation, siteData = null) {
@@ -470,7 +471,7 @@ export function videoHasTranscript(el) {
       return true;
     }
   }
-  const tracks = el.querySelectorAll('track[src],track[kind="captions"],track[kind="subtitles"],track[kind="transcript"]');
+  const tracks = el.querySelectorAll(VIDEO_TRACK_ELEMENTS_SELECTOR);
   if (tracks.length > 0) {
     return true;
   }
