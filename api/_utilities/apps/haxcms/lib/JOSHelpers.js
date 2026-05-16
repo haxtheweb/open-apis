@@ -4,6 +4,8 @@ import { parse } from 'node-html-parser';
 
 // average adult reading pace
 const WORDSPERMIN = 225;
+const VIDEO_ELEMENTS_SELECTOR = 'video-player,iframe[src*="youtube.com"],iframe[src*="youtube-nocookie.com"],iframe[src*="vimeo.com"],video[src],video source[src],a11y-media-player';
+const VIDEO_TRANSCRIPT_ATTRIBUTES = ['track', 'tracks', 'transcript', 'transcript-src', 'captions', 'caption', 'cc'];
 // this either pulls the site from the location directly or from the data passed in
 // so that other things can work with the outline as loaded
 export async function resolveSiteData(siteLocation, siteData = null) {
@@ -117,7 +119,7 @@ export async function courseStatsFromOutline(siteLocation, siteData = null, ance
       break;
       // get videos, and then attempt to query APIs to obtain total video duration across providers
       case 'video':
-        const videos = doc.querySelectorAll('video-player,iframe[src*="youtube.com"],iframe[src*="youtube-nocookie.com"],iframe[src*="vimeo.com"],video[src],video source[src],a11y-media-player');
+        const videos = doc.querySelectorAll(VIDEO_ELEMENTS_SELECTOR);
         data[inc] = videos.length;
         data.videoLength = 0;
         // walk all the video sources and build 1 request for google API about duration data
@@ -340,7 +342,7 @@ export async function courseStatsFromOutline(siteLocation, siteData = null, ance
       // find videos missing transcript support and return where to fix them
       case 'videoTranscriptData':
         data.videoTranscriptData = [];
-        const allVideos = doc.querySelectorAll('video-player,iframe[src*="youtube.com"],iframe[src*="youtube-nocookie.com"],iframe[src*="vimeo.com"],video[src],a11y-media-player');
+        const allVideos = doc.querySelectorAll(VIDEO_ELEMENTS_SELECTOR);
         for (let el of allVideos) {
           if (!videoHasTranscript(el)) {
             let parent = el.parentNode;
@@ -462,8 +464,7 @@ export function videoHasTranscript(el) {
   if (!el) {
     return false;
   }
-  const transcriptAttributes = ['track', 'tracks', 'transcript', 'transcript-src', 'captions', 'caption', 'cc'];
-  for (let attr of transcriptAttributes) {
+  for (let attr of VIDEO_TRANSCRIPT_ATTRIBUTES) {
     const value = el.getAttribute(attr);
     if (value && value !== 'false' && value !== '0') {
       return true;

@@ -23,11 +23,11 @@ export default async function handler(req, res) {
     if (url.endsWith('/')) {
       url = url.slice(0, -1);
     }
-    var parseURL = new URL(url);
+    const parseURL = new URL(url);
     if (parseURL.pathname && parseURL.host) {
       parseURL.host = parseURL.host.replace('iam.', 'oer.').replace('courses.', 'oer.');
       const base = `${parseURL.protocol}//${parseURL.host}${parseURL.pathname}`;
-      var siteData = body.site || null;
+      let siteData = body.site || null;
       let itemId = body.activeId || null;
       if (itemId === 'null') {
         itemId = null;
