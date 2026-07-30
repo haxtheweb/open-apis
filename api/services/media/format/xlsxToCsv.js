@@ -1,7 +1,7 @@
 // xlsxToCsv.js
 // Convert Excel files (.xls, .xlsx) to CSV format
 import { stdResponse } from "../../../_utilities/requestHelpers.js";
-import ExcelJS from 'exceljs';
+import * as XLSX from "xlsx";
 
 // Helper function to parse multipart form data manually
 function parseMultipartData(buffer, boundary) {
@@ -51,45 +51,35 @@ function escapeCsvValue(value) {
 }
 
 function worksheetToCsv(worksheet, includeHeaders) {
-  const rows = [];
-  let maxColumns = 0;
-
-  worksheet.eachRow({ includeEmpty: false }, (row) => {
-    if (row.cellCount > maxColumns) {
-      maxColumns = row.cellCount;
-    }
-  });
-
-  if (maxColumns === 0) {
+  const ref = worksheet['!ref'];
+  if (!ref) {
     return '';
   }
-
-  for (let rowNumber = 1; rowNumber <= worksheet.rowCount; rowNumber++) {
-    const row = worksheet.getRow(rowNumber);
+  const range = XLSX.utils.decode_range(ref);
+  const rows = [];
+  for (let rowNumber = range.s.r; rowNumber <= range.e.r; rowNumber++) {
     const serializedRow = [];
     let hasValues = false;
-
-    for (let columnNumber = 1; columnNumber <= maxColumns; columnNumber++) {
-      const cellText = row.getCell(columnNumber).text;
+    for (let columnNumber = range.s.c; columnNumber <= range.e.c; columnNumber++) {
+      const cell = worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: columnNumber })];
+      let cellText = '';
+      if (cell) {
+        cellText = cell.w != null ? cell.w : String(cell.v == null ? '' : cell.v);
+      }
       const normalizedValue =
         cellText === null || cellText === undefined ? '' : String(cellText);
-
       if (normalizedValue.trim() !== '') {
         hasValues = true;
       }
-
       serializedRow.push(escapeCsvValue(normalizedValue));
     }
-
     if (hasValues) {
       rows.push(serializedRow.join(','));
     }
   }
-
   if (!includeHeaders && rows.length > 0) {
     rows.shift();
   }
-
   return rows.join('\n');
 }
 
@@ -143,9 +133,8 @@ export default async function handler(req, res) {
       }
       
       // Parse Excel file
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(fileInfo.data);
-      const sheetNames = workbook.worksheets.map((sheet) => sheet.name);
+      const workbook = XLSX.read(fileInfo.data, { type: 'buffer' });
+      const sheetNames = workbook.SheetNames;
       
       // Determine which sheet to use
       let selectedSheetName = sheetName;
@@ -157,7 +146,7 @@ export default async function handler(req, res) {
         throw new Error('No sheets found in Excel file');
       }
       
-      const worksheet = workbook.getWorksheet(selectedSheetName);
+      const worksheet = workbook.Sheets[selectedSheetName];
       if (!worksheet) {
         throw new Error(`Unable to access worksheet: ${selectedSheetName}`);
       }

@@ -1,12 +1,19 @@
 import { stdPostBody, stdResponse, invalidRequest } from "../../../_utilities/requestHelpers.js";
 import { resolveSiteData } from "../../../_utilities/apps/haxcms/lib/JOSHelpers.js";
 
+const SITE_FILES_TO_IMPORT = [
+  'theme/theme.css',
+  'theme/theme.html',
+  'custom/build/custom.es6.js'
+];
+const BOILERPLATE_CUSTOM_ES6 = '// custom comment script here';
 
 // site object to validate response from passed in url
 export default async function handler(req, res) {
   let site = {};
   let body = {};
   let downloads = {};
+  let siteFiles = {};
   // must POST a md 
   body = stdPostBody(req);
   if (!body || !body.repoUrl) {
@@ -41,12 +48,29 @@ export default async function handler(req, res) {
           }
         }
       }
+      // attempt to fetch user-customized theme and custom files
+      for (const filePath of SITE_FILES_TO_IMPORT) {
+        try {
+          const resp = await fetch(`${base}/${filePath}`);
+          if (resp.ok) {
+            const text = await resp.text();
+            if (text && text.trim() !== '') {
+              // skip boilerplate custom.es6.js that has never been modified
+              if (filePath === 'custom/build/custom.es6.js' && text.trim() === BOILERPLATE_CUSTOM_ES6) {
+                continue;
+              }
+              siteFiles[filePath] = `${base}/${filePath}`;
+            }
+          }
+        } catch (e) {}
+      }
     }
     res = stdResponse(res, {
       data: {
         items: site.items,
         filename: (site.metadata && site.metadata.site && site.metadata.site.name) ? site.metadata.site.name : parseURL.pathname.split('/').pop(),
-        files: downloads
+        files: downloads,
+        siteFiles: siteFiles
       },
       status: 200
     }, {cache: 180, type: "application/json" });

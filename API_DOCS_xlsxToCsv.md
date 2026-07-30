@@ -124,6 +124,6 @@ The endpoint handles various error conditions:
 
 ## Dependencies
 
-- `exceljs` (v4.4.0): Excel parsing and CSV conversion
+- `xlsx` (v0.18.5): Excel parsing and CSV conversion
 - `busboy` (v1.6.0): Multipart form parsing
 - `concat-stream` (v2.0.0): Stream buffer handling
